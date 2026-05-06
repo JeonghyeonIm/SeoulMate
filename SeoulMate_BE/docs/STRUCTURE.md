@@ -18,6 +18,7 @@ SeoulMate_BE/
 |   `-- seed.sql
 |-- docs/
 |   |-- API.md
+|   |-- AWS_SECURITY_GROUPS.md
 |   |-- DB.md
 |   |-- PUBLIC_DATA_APIS.md
 |   `-- STRUCTURE.md
@@ -139,6 +140,7 @@ SeoulMate_BE/
 ## 문서
 
 - `API.md`: 예정 API 명세 초안
+- `AWS_SECURITY_GROUPS.md`: EC2/RDS 보안 그룹 생성 및 연결 절차
 - `DB.md`: PostgreSQL 기반 DB 설계 문서
 - `PUBLIC_DATA_APIS.md`: 서울 공공데이터 API 후보 및 수집 전략
 - `STRUCTURE.md`: 현재 백엔드 구조 설명
