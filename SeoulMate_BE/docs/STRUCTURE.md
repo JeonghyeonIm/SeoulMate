@@ -1,28 +1,22 @@
 # SeoulMate_BE Structure
 
-## Overview
+## 개요
 
-`SeoulMate_BE` is a layered Express backend scaffold written in TypeScript.
-The project already has runtime bootstrap, TypeScript build settings, PostgreSQL connection scaffolding, formatting/linting rules, and pre-commit automation, while most domain-specific modules are still placeholders.
+`SeoulMate_BE`는 TypeScript 기반 Express 백엔드 스캐폴드입니다.
+현재 구조는 API 서버 기본 골격과 PostgreSQL/Supabase 연결 지점, 추천 도메인 확장을 위한 계층 구조를 포함합니다.
 
-## Top-Level Layout
+## 최상위 구조
 
 ```text
 SeoulMate_BE/
 |-- .env.example
 |-- .gitignore
 |-- .husky/
-|   |-- pre-commit
-|   `-- _/
-|-- .prettierignore
-|-- .prettierrc.json
-|-- .vscode/
-|   `-- settings.json
-|-- AGENTS.md
 |-- docs/
 |   |-- API.md
+|   |-- DB.md
+|   |-- PUBLIC_DATA_APIS.md
 |   `-- STRUCTURE.md
-|-- eslint.config.mjs
 |-- package.json
 |-- scripts/
 |   |-- seed.ts
@@ -32,26 +26,14 @@ SeoulMate_BE/
 |   |-- app.ts
 |   |-- server.ts
 |   |-- clients/
-|   |   |-- map.client.ts
-|   |   |-- openai.client.ts
-|   |   `-- seoulOpenData.client.ts
 |   |-- config/
 |   |   |-- db.ts
 |   |   |-- env.ts
-|   |   `-- openai.ts
+|   |   |-- openai.ts
+|   |   `-- supabase.ts
 |   |-- constants/
-|   |   |-- datasetType.ts
-|   |   `-- scoreWeight.ts
 |   |-- controllers/
-|   |   |-- ai.controller.ts
-|   |   |-- publicData.controller.ts
-|   |   |-- recommendation.controller.ts
-|   |   `-- user.controller.ts
 |   |-- middlewares/
-|   |   |-- asyncHandler.ts
-|   |   |-- auth.ts
-|   |   |-- errorHandler.ts
-|   |   `-- validateRequest.ts
 |   |-- models/
 |   |   |-- publicDataset.model.ts
 |   |   |-- recommendation.model.ts
@@ -62,171 +44,123 @@ SeoulMate_BE/
 |   |   |-- recommendation.repository.ts
 |   |   `-- user.repository.ts
 |   |-- routes/
-|   |   |-- ai.routes.ts
-|   |   |-- index.ts
-|   |   |-- publicData.routes.ts
-|   |   |-- recommendation.routes.ts
-|   |   `-- user.routes.ts
 |   |-- services/
-|   |   |-- ai.service.ts
-|   |   |-- publicData.service.ts
-|   |   |-- recommendation.service.ts
-|   |   |-- scoring.service.ts
-|   |   `-- user.service.ts
 |   |-- utils/
-|   |   |-- ApiError.ts
-|   |   |-- date.ts
-|   |   |-- normalize.ts
-|   |   `-- response.ts
 |   `-- validators/
-|       |-- recommendation.validator.ts
-|       `-- user.validator.ts
+|-- supabase/
+|   |-- migrations/
+|   |   `-- 20260506_initial_schema.sql
+|   `-- seed.sql
 |-- tests/
-|   |-- publicData.test.ts
-|   `-- recommendation.test.ts
 `-- tsconfig.json
 ```
 
-## Runtime and Tooling Files
-
-### `package.json`
-
-- Defines project scripts:
-  - `npm run dev`
-  - `npm run build`
-  - `npm start`
-  - `npm run lint`
-  - `npm run lint:fix`
-  - `npm run format`
-  - `npm run format:check`
-  - `npm run prepare`
-- Holds `lint-staged` rules for staged file formatting and lint fixing.
-
-### `tsconfig.json`
-
-- Compiles `src/**/*.ts` into `dist/`.
-- Current output directory is `dist/`.
-- Strict TypeScript mode is enabled.
+## 주요 설정 파일
 
 ### `.env.example`
 
-- Template for local runtime variables.
-- Real `.env` values must stay out of version control.
+- 로컬 개발과 Supabase 연결에 필요한 환경 변수 템플릿입니다.
+- 현재 핵심 변수:
+  - `DATABASE_URL`
+  - `DATABASE_SSL`
+  - `SUPABASE_URL`
+  - `SUPABASE_ANON_KEY`
+  - `SUPABASE_SERVICE_ROLE_KEY`
 
-### `eslint.config.mjs`, `.prettierrc.json`, `.prettierignore`
+### `package.json`
 
-- `eslint.config.mjs`: ESLint flat config for TypeScript and import ordering
-- `.prettierrc.json`: project formatting rules
-- `.prettierignore`: files excluded from Prettier
+- Express 서버 실행, 빌드, 포맷, 린트 스크립트를 정의합니다.
+- `pg`와 `@supabase/supabase-js`를 함께 사용합니다.
 
-### `.husky/`, `scripts/setupHusky.mjs`
+### `tsconfig.json`
 
-- `.husky/pre-commit`: entry hook that triggers `lint-staged`
-- `.husky/_/`: wrapper scripts used by Git hooks
-- `scripts/setupHusky.mjs`: sets up the hook path for the parent Git repository layout
+- `src/**/*.ts`를 `dist/`로 컴파일합니다.
+- strict TypeScript 설정을 사용합니다.
 
-## Application Layers
+## `src/config/`
 
-### `src/app.ts`, `src/server.ts`
+### `db.ts`
 
-- `app.ts` composes the Express app.
-  - enables `cors`
-  - enables JSON and URL-encoded body parsing
-  - exposes `GET /health`
-  - mounts the API router under `/api`
-- `server.ts` starts the HTTP server using the configured port.
+- `pg.Pool`을 생성합니다.
+- `DATABASE_URL`이 있으면 Supabase Postgres에 직접 연결하고, 없으면 개별 Postgres 환경 변수 조합으로 연결합니다.
+- SSL 여부는 `DATABASE_SSL`로 제어합니다.
 
-### `src/routes/`
+### `env.ts`
 
-- Entry point for HTTP path declarations.
-- `index.ts` currently provides the minimal `/api` root endpoint.
-- Additional route files are reserved for domain-specific endpoints.
+- 환경 변수를 로드하고 기본값을 정리합니다.
+- 포트와 boolean 값도 여기서 파싱합니다.
 
-### `src/controllers/`
+### `supabase.ts`
 
-- HTTP controller layer.
-- Intended to translate validated request data into service calls and responses.
+- `@supabase/supabase-js` 클라이언트를 생성합니다.
+- 익명 키용 클라이언트와 서비스 롤 키용 관리자 클라이언트를 분리합니다.
 
-### `src/services/`
+## `src/models/`
 
-- Business logic layer.
-- `scoring.service.ts` is the intended center for recommendation weighting and ranking logic.
+### `user.model.ts`
 
-### `src/repositories/`
+- `profiles` 테이블 기준 사용자 프로필 타입을 정의합니다.
 
-- PostgreSQL access boundary.
-- Keeps query and persistence code out of controllers and services.
+### `publicDataset.model.ts`
 
-### `src/models/`
+- `public_data` 테이블과 검색/업서트 입력 타입을 정의합니다.
 
-- Persistence-facing entities or schema definitions.
-- Current model names imply `User`, `Recommendation`, `Score`, and `PublicDataset` as primary data concepts.
+### `recommendation.model.ts`
 
-### `src/clients/`
+- `recommendation_requests`, `recommendations`, `saved_courses` 타입을 정의합니다.
 
-- External integration boundary.
-- Intended for map APIs, OpenAI/LLM calls, and Seoul public/open data APIs.
+### `score.model.ts`
 
-### `src/config/`
+- 추천 점수 계산 결과 구조를 정의합니다.
 
-- Centralized runtime configuration.
-- `env.ts`: loads and normalizes environment variables
-- `db.ts`: creates a `pg.Pool`
-- `openai.ts`: placeholder for OpenAI-specific setup
+## `src/repositories/`
 
-### `src/middlewares/`
+### `user.repository.ts`
 
-- Shared Express pipeline logic.
-- Intended for auth, validation, async wrapping, and global error handling.
+- `profiles` 조회/업서트/선호 정보 수정 로직을 담당합니다.
 
-### `src/validators/`
+### `publicData.repository.ts`
 
-- Request validation layer prepared for `user` and `recommendation` domains.
+- `public_data` 조회, 검색, 업서트 로직을 담당합니다.
 
-### `src/constants/`
+### `recommendation.repository.ts`
 
-- Shared domain constants.
-- Expected to hold scoring weights and dataset classifications.
+- 추천 요청 생성
+- 추천 결과 저장
+- 저장 코스 등록/해제/조회
 
-### `src/utils/`
+위 흐름의 DB 접근 로직을 담당합니다.
 
-- Cross-cutting helpers that should stay domain-neutral.
+## `supabase/`
 
-## Supporting Directories
+### `migrations/20260506_initial_schema.sql`
 
-### `docs/`
+- 초기 스키마 전체를 정의합니다.
+- Auth 연동 트리거, RLS 정책, 인덱스, 앱 테이블 생성이 포함됩니다.
 
-- Human-facing backend reference material.
-- `API.md`: API draft and endpoint plan
-- `STRUCTURE.md`: repository structure and runtime layout
+### `seed.sql`
 
-### `scripts/`
+- 개발용 샘플 장소 데이터를 적재합니다.
 
-- Project-local setup or operational jobs.
-- `seed.ts` and `syncPublicData.ts` are placeholders.
+## `docs/`
 
-### `tests/`
+- `API.md`: 예정 API 명세 초안
+- `DB.md`: Supabase 기반 DB 설계 문서
+- `PUBLIC_DATA_APIS.md`: 서울 공공데이터 API 후보 및 수집 전략 문서
+- `STRUCTURE.md`: 현재 백엔드 구조 설명
 
-- Placeholder test directory.
-- Test targets are present, but no runner is wired yet.
+## 현재 계층 흐름
 
-## Current State Notes
+권장 흐름은 아래와 같습니다.
 
-- TypeScript build and Express bootstrap are working.
-- Formatting and linting are configured and runnable.
-- Pre-commit formatting/lint automation is configured through Husky and lint-staged.
-- PostgreSQL connection scaffolding exists, but no domain repository logic is implemented yet.
-- Most files outside the runtime/config/bootstrap path are still placeholders.
+`routes -> controllers -> services -> repositories -> PostgreSQL/Supabase`
 
-## Current Live Endpoints
+현재 repository 계층까지는 기본 구현이 들어갔고, 컨트롤러/서비스 계층은 이 스키마를 기준으로 이어서 구현할 수 있는 상태입니다.
 
-- `GET /health`
-- `GET /api`
+## 다음 구현 포인트
 
-## Recommended Conventions Going Forward
-
-1. Keep the request flow as `routes -> controllers -> services -> repositories/models`.
-2. Keep external API calls inside `clients/`.
-3. Add new features as full vertical slices, not one isolated file at a time.
-4. Keep scoring logic centralized in `services/scoring.service.ts`.
-5. Run `npm run format` and `npm run lint` after meaningful changes.
+1. Supabase Auth 기반 로그인/회원가입 API 연결
+2. `profiles` 기반 `/users/me` 구현
+3. `public_data` 검색 API 구현
+4. `recommendation_requests`, `recommendations` 기반 추천 저장 API 구현
+5. `saved_courses` 기반 저장 코스 API 구현
