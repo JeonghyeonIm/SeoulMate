@@ -20,7 +20,10 @@ SeoulMate_BE/
 |   |-- API.md
 |   |-- AWS_SECURITY_GROUPS.md
 |   |-- DB.md
+|   |-- DEPLOYMENT.md
+|   |-- DOMAIN_SETUP.md
 |   |-- PUBLIC_DATA_APIS.md
+|   |-- VPC_SETUP.md
 |   `-- STRUCTURE.md
 |-- package.json
 |-- scripts/
@@ -142,5 +145,8 @@ SeoulMate_BE/
 - `API.md`: 예정 API 명세 초안
 - `AWS_SECURITY_GROUPS.md`: EC2/RDS 보안 그룹 생성 및 연결 절차
 - `DB.md`: PostgreSQL 기반 DB 설계 문서
+- `DEPLOYMENT.md`: EC2, EIP, RDS, Nginx, PM2 기준 실제 배포 절차
+- `DOMAIN_SETUP.md`: 가비아 도메인과 AWS 서버 연결 절차
 - `PUBLIC_DATA_APIS.md`: 서울 공공데이터 API 후보 및 수집 전략
+- `VPC_SETUP.md`: VPC, subnet, route table, RDS subnet group 구성 절차
 - `STRUCTURE.md`: 현재 백엔드 구조 설명
