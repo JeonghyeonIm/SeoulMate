@@ -8,8 +8,8 @@ import type {
 } from "../models/recommendation.model";
 
 const mapRecommendationRequest = (row: Record<string, unknown>): RecommendationRequest => ({
-  id: String(row.id),
-  userId: String(row.user_id),
+  id: Number(row.id),
+  userId: Number(row.user_id),
   requestText: (row.request_text as string | null) ?? null,
   preferredRegion: (row.preferred_region as string | null) ?? null,
   preferredCategory: (row.preferred_category as string | null) ?? null,
@@ -23,8 +23,8 @@ const mapRecommendationRequest = (row: Record<string, unknown>): RecommendationR
 
 const mapRecommendationItem = (row: Record<string, unknown>): RecommendationItem => ({
   id: Number(row.id),
-  requestId: String(row.request_id),
-  userId: String(row.user_id),
+  requestId: Number(row.request_id),
+  userId: Number(row.user_id),
   publicDataId: Number(row.public_data_id),
   courseOrder: row.course_order === null ? null : Number(row.course_order),
   score: Number(row.score),
@@ -36,8 +36,8 @@ const mapRecommendationItem = (row: Record<string, unknown>): RecommendationItem
 
 const mapSavedCourse = (row: Record<string, unknown>): SavedCourse => ({
   id: Number(row.id),
-  userId: String(row.user_id),
-  requestId: String(row.request_id),
+  userId: Number(row.user_id),
+  requestId: Number(row.request_id),
   notes: (row.notes as string | null) ?? null,
   savedAt: String(row.saved_at)
 });
@@ -114,7 +114,7 @@ export const recommendationRepository = {
     return createdItems;
   },
 
-  async listItemsByRequest(requestId: string): Promise<RecommendationItem[]> {
+  async listItemsByRequest(requestId: number): Promise<RecommendationItem[]> {
     const result = await db.query(
       `SELECT *
          FROM recommendations
@@ -126,7 +126,7 @@ export const recommendationRepository = {
     return result.rows.map(mapRecommendationItem);
   },
 
-  async saveCourse(userId: string, requestId: string, notes?: string | null): Promise<SavedCourse> {
+  async saveCourse(userId: number, requestId: number, notes?: string | null): Promise<SavedCourse> {
     const result = await db.query(
       `INSERT INTO saved_courses (user_id, request_id, notes)
        VALUES ($1, $2, $3)
@@ -139,7 +139,7 @@ export const recommendationRepository = {
     return mapSavedCourse(result.rows[0]);
   },
 
-  async removeSavedCourse(userId: string, requestId: string): Promise<boolean> {
+  async removeSavedCourse(userId: number, requestId: number): Promise<boolean> {
     const result = await db.query(
       `DELETE FROM saved_courses
         WHERE user_id = $1
@@ -150,7 +150,7 @@ export const recommendationRepository = {
     return (result.rowCount ?? 0) > 0;
   },
 
-  async listSavedCourses(userId: string): Promise<SavedCourse[]> {
+  async listSavedCourses(userId: number): Promise<SavedCourse[]> {
     const result = await db.query(
       `SELECT *
          FROM saved_courses

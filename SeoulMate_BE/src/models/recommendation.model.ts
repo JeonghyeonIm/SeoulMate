@@ -1,6 +1,6 @@
 export interface RecommendationRequest {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   requestText: string | null;
   preferredRegion: string | null;
   preferredCategory: string | null;
@@ -13,7 +13,7 @@ export interface RecommendationRequest {
 }
 
 export interface CreateRecommendationRequestInput {
-  userId: string;
+  userId: number;
   requestText?: string | null;
   preferredRegion?: string | null;
   preferredCategory?: string | null;
@@ -25,8 +25,8 @@ export interface CreateRecommendationRequestInput {
 
 export interface RecommendationItem {
   id: number;
-  requestId: string;
-  userId: string;
+  requestId: number;
+  userId: number;
   publicDataId: number;
   courseOrder: number | null;
   score: number;
@@ -37,8 +37,8 @@ export interface RecommendationItem {
 }
 
 export interface CreateRecommendationItemInput {
-  requestId: string;
-  userId: string;
+  requestId: number;
+  userId: number;
   publicDataId: number;
   courseOrder?: number | null;
   score: number;
@@ -49,8 +49,8 @@ export interface CreateRecommendationItemInput {
 
 export interface SavedCourse {
   id: number;
-  userId: string;
-  requestId: string;
+  userId: number;
+  requestId: number;
   notes: string | null;
   savedAt: string;
 }

@@ -1,4 +1,4 @@
-insert into public.public_data (
+insert into public_data (
   source_dataset,
   source_record_id,
   title,
@@ -74,4 +74,4 @@ do update set
   longitude = excluded.longitude,
   source_url = excluded.source_url,
   metadata = excluded.metadata,
-  updated_at = timezone('utc', now());
+  updated_at = current_timestamp;

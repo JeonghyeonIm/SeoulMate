@@ -1,5 +1,5 @@
 export interface UserProfile {
-  id: string;
+  id: number;
   email: string;
   nickname: string;
   preferredRegion: string | null;
@@ -9,8 +9,8 @@ export interface UserProfile {
 }
 
 export interface CreateUserProfileInput {
-  id: string;
   email: string;
+  passwordHash: string;
   nickname: string;
   preferredRegion?: string | null;
   preferredCategory?: string | null;

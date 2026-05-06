@@ -6,7 +6,7 @@ import type {
 } from "../models/user.model";
 
 const mapUserProfile = (row: Record<string, unknown>): UserProfile => ({
-  id: String(row.id),
+  id: Number(row.id),
   email: String(row.email),
   nickname: String(row.nickname),
   preferredRegion: (row.preferred_region as string | null) ?? null,
@@ -16,10 +16,10 @@ const mapUserProfile = (row: Record<string, unknown>): UserProfile => ({
 });
 
 export const userRepository = {
-  async getById(id: string): Promise<UserProfile | null> {
+  async getById(id: number): Promise<UserProfile | null> {
     const result = await db.query(
       `SELECT id, email, nickname, preferred_region, preferred_category, created_at, updated_at
-         FROM profiles
+         FROM users
         WHERE id = $1`,
       [id]
     );
@@ -27,21 +27,25 @@ export const userRepository = {
     return result.rowCount ? mapUserProfile(result.rows[0]) : null;
   },
 
-  async upsertProfile(input: CreateUserProfileInput): Promise<UserProfile> {
+  async getByEmail(email: string): Promise<UserProfile | null> {
     const result = await db.query(
-      `INSERT INTO profiles (id, email, nickname, preferred_region, preferred_category)
+      `SELECT id, email, nickname, preferred_region, preferred_category, created_at, updated_at
+         FROM users
+        WHERE email = $1`,
+      [email]
+    );
+
+    return result.rowCount ? mapUserProfile(result.rows[0]) : null;
+  },
+
+  async createUser(input: CreateUserProfileInput): Promise<UserProfile> {
+    const result = await db.query(
+      `INSERT INTO users (email, password_hash, nickname, preferred_region, preferred_category)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (id)
-       DO UPDATE SET
-         email = EXCLUDED.email,
-         nickname = EXCLUDED.nickname,
-         preferred_region = EXCLUDED.preferred_region,
-         preferred_category = EXCLUDED.preferred_category,
-         updated_at = now()
        RETURNING id, email, nickname, preferred_region, preferred_category, created_at, updated_at`,
       [
-        input.id,
         input.email,
+        input.passwordHash,
         input.nickname,
         input.preferredRegion ?? null,
         input.preferredCategory ?? null
@@ -52,11 +56,11 @@ export const userRepository = {
   },
 
   async updatePreferences(
-    id: string,
+    id: number,
     input: UpdateUserPreferencesInput
   ): Promise<UserProfile | null> {
     const result = await db.query(
-      `UPDATE profiles
+      `UPDATE users
           SET preferred_region = COALESCE($2, preferred_region),
               preferred_category = COALESCE($3, preferred_category),
               updated_at = now()
