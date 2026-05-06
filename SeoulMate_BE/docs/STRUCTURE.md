@@ -2,183 +2,231 @@
 
 ## Overview
 
-`SeoulMate_BE` is organized as a layered Node.js backend skeleton.
-The directory layout already separates API flow by responsibility, but as of now most source files are empty placeholders, so this document describes the intended structure based on file names and placement.
+`SeoulMate_BE` is a layered Express backend scaffold written in TypeScript.
+The project already has runtime bootstrap, TypeScript build settings, PostgreSQL connection scaffolding, formatting/linting rules, and pre-commit automation, while most domain-specific modules are still placeholders.
 
 ## Top-Level Layout
 
 ```text
 SeoulMate_BE/
+|-- .env.example
+|-- .gitignore
+|-- .husky/
+|   |-- pre-commit
+|   `-- _/
+|-- .prettierignore
+|-- .prettierrc.json
+|-- .vscode/
+|   `-- settings.json
+|-- AGENTS.md
 |-- docs/
+|   |-- API.md
 |   `-- STRUCTURE.md
+|-- eslint.config.mjs
 |-- package.json
 |-- scripts/
-|   |-- seed.js
-|   `-- syncPublicData.js
+|   |-- seed.ts
+|   |-- setupHusky.mjs
+|   `-- syncPublicData.ts
 |-- src/
-|   |-- app.js
-|   |-- server.js
+|   |-- app.ts
+|   |-- server.ts
 |   |-- clients/
-|   |   |-- map.client.js
-|   |   |-- openai.client.js
-|   |   `-- seoulOpenData.client.js
+|   |   |-- map.client.ts
+|   |   |-- openai.client.ts
+|   |   `-- seoulOpenData.client.ts
 |   |-- config/
-|   |   |-- db.js
-|   |   |-- env.js
-|   |   `-- openai.js
+|   |   |-- db.ts
+|   |   |-- env.ts
+|   |   `-- openai.ts
 |   |-- constants/
-|   |   |-- datasetType.js
-|   |   `-- scoreWeight.js
+|   |   |-- datasetType.ts
+|   |   `-- scoreWeight.ts
 |   |-- controllers/
-|   |   |-- ai.controller.js
-|   |   |-- publicData.controller.js
-|   |   |-- recommendation.controller.js
-|   |   `-- user.controller.js
+|   |   |-- ai.controller.ts
+|   |   |-- publicData.controller.ts
+|   |   |-- recommendation.controller.ts
+|   |   `-- user.controller.ts
 |   |-- middlewares/
-|   |   |-- asyncHandler.js
-|   |   |-- auth.js
-|   |   |-- errorHandler.js
-|   |   `-- validateRequest.js
+|   |   |-- asyncHandler.ts
+|   |   |-- auth.ts
+|   |   |-- errorHandler.ts
+|   |   `-- validateRequest.ts
 |   |-- models/
-|   |   |-- publicDataset.model.js
-|   |   |-- recommendation.model.js
-|   |   |-- score.model.js
-|   |   `-- user.model.js
+|   |   |-- publicDataset.model.ts
+|   |   |-- recommendation.model.ts
+|   |   |-- score.model.ts
+|   |   `-- user.model.ts
 |   |-- repositories/
-|   |   |-- publicData.repository.js
-|   |   |-- recommendation.repository.js
-|   |   `-- user.repository.js
+|   |   |-- publicData.repository.ts
+|   |   |-- recommendation.repository.ts
+|   |   `-- user.repository.ts
 |   |-- routes/
-|   |   |-- ai.routes.js
-|   |   |-- index.js
-|   |   |-- publicData.routes.js
-|   |   |-- recommendation.routes.js
-|   |   `-- user.routes.js
+|   |   |-- ai.routes.ts
+|   |   |-- index.ts
+|   |   |-- publicData.routes.ts
+|   |   |-- recommendation.routes.ts
+|   |   `-- user.routes.ts
 |   |-- services/
-|   |   |-- ai.service.js
-|   |   |-- publicData.service.js
-|   |   |-- recommendation.service.js
-|   |   |-- scoring.service.js
-|   |   `-- user.service.js
+|   |   |-- ai.service.ts
+|   |   |-- publicData.service.ts
+|   |   |-- recommendation.service.ts
+|   |   |-- scoring.service.ts
+|   |   `-- user.service.ts
 |   |-- utils/
-|   |   |-- ApiError.js
-|   |   |-- date.js
-|   |   |-- normalize.js
-|   |   `-- response.js
+|   |   |-- ApiError.ts
+|   |   |-- date.ts
+|   |   |-- normalize.ts
+|   |   `-- response.ts
 |   `-- validators/
-|       |-- recommendation.validator.js
-|       `-- user.validator.js
-`-- tests/
-    |-- publicData.test.js
-    `-- recommendation.test.js
+|       |-- recommendation.validator.ts
+|       `-- user.validator.ts
+|-- tests/
+|   |-- publicData.test.ts
+|   `-- recommendation.test.ts
+`-- tsconfig.json
 ```
 
-## Layer Responsibilities
+## Runtime and Tooling Files
 
-### `src/app.js`, `src/server.js`
+### `package.json`
 
-- `app.js`: Express app composition point.
-- `server.js`: actual server bootstrap and runtime entrypoint.
+- Defines project scripts:
+  - `npm run dev`
+  - `npm run build`
+  - `npm start`
+  - `npm run lint`
+  - `npm run lint:fix`
+  - `npm run format`
+  - `npm run format:check`
+  - `npm run prepare`
+- Holds `lint-staged` rules for staged file formatting and lint fixing.
 
-At the moment both files are empty, but this split usually means app wiring and process startup are intentionally separated.
+### `tsconfig.json`
+
+- Compiles `src/**/*.ts` into `dist/`.
+- Current output directory is `dist/`.
+- Strict TypeScript mode is enabled.
+
+### `.env.example`
+
+- Template for local runtime variables.
+- Real `.env` values must stay out of version control.
+
+### `eslint.config.mjs`, `.prettierrc.json`, `.prettierignore`
+
+- `eslint.config.mjs`: ESLint flat config for TypeScript and import ordering
+- `.prettierrc.json`: project formatting rules
+- `.prettierignore`: files excluded from Prettier
+
+### `.husky/`, `scripts/setupHusky.mjs`
+
+- `.husky/pre-commit`: entry hook that triggers `lint-staged`
+- `.husky/_/`: wrapper scripts used by Git hooks
+- `scripts/setupHusky.mjs`: sets up the hook path for the parent Git repository layout
+
+## Application Layers
+
+### `src/app.ts`, `src/server.ts`
+
+- `app.ts` composes the Express app.
+  - enables `cors`
+  - enables JSON and URL-encoded body parsing
+  - exposes `GET /health`
+  - mounts the API router under `/api`
+- `server.ts` starts the HTTP server using the configured port.
 
 ### `src/routes/`
 
-- Defines HTTP endpoints by domain.
-- `index.js` is likely intended to aggregate sub-routes.
-- Domain route files are separated into `ai`, `publicData`, `recommendation`, and `user`.
+- Entry point for HTTP path declarations.
+- `index.ts` currently provides the minimal `/api` root endpoint.
+- Additional route files are reserved for domain-specific endpoints.
 
 ### `src/controllers/`
 
-- Receives requests from routes.
-- Extracts request data and sends HTTP responses.
-- Delegates business logic to services.
+- HTTP controller layer.
+- Intended to translate validated request data into service calls and responses.
 
 ### `src/services/`
 
-- Core business logic layer.
-- `scoring.service.js` suggests recommendation scoring is isolated as a reusable domain service.
-- Other services appear aligned with API domains: AI, public data, recommendation, and user.
+- Business logic layer.
+- `scoring.service.ts` is the intended center for recommendation weighting and ranking logic.
 
 ### `src/repositories/`
 
-- Data access abstraction layer.
-- Intended to isolate persistence queries from service logic.
-- Currently repository coverage exists for `user`, `recommendation`, and `publicData`.
+- PostgreSQL access boundary.
+- Keeps query and persistence code out of controllers and services.
 
 ### `src/models/`
 
-- Persistence schema or entity definition layer.
-- Domain models suggest the backend handles users, recommendations, score data, and public datasets.
+- Persistence-facing entities or schema definitions.
+- Current model names imply `User`, `Recommendation`, `Score`, and `PublicDataset` as primary data concepts.
 
 ### `src/clients/`
 
-- External API integration layer.
-- File names indicate three external dependencies:
-  - map service
-  - OpenAI service
-  - Seoul open data service
-
-This separation is useful because transport logic, authentication, and response mapping stay outside controllers/services.
+- External integration boundary.
+- Intended for map APIs, OpenAI/LLM calls, and Seoul public/open data APIs.
 
 ### `src/config/`
 
 - Centralized runtime configuration.
-- `env.js`: environment variable loading and validation.
-- `db.js`: database connection setup.
-- `openai.js`: OpenAI-specific configuration.
+- `env.ts`: loads and normalizes environment variables
+- `db.ts`: creates a `pg.Pool`
+- `openai.ts`: placeholder for OpenAI-specific setup
 
 ### `src/middlewares/`
 
-- Shared Express middleware components.
-- Covers authentication, async error wrapping, global error handling, and request validation.
+- Shared Express pipeline logic.
+- Intended for auth, validation, async wrapping, and global error handling.
 
 ### `src/validators/`
 
-- Request schema validation layer.
-- Currently scoped to `user` and `recommendation` domains.
+- Request validation layer prepared for `user` and `recommendation` domains.
 
 ### `src/constants/`
 
-- Shared fixed values and domain constants.
-- `datasetType.js` and `scoreWeight.js` indicate scoring and dataset categorization rules are meant to be standardized here.
+- Shared domain constants.
+- Expected to hold scoring weights and dataset classifications.
 
 ### `src/utils/`
 
-- Cross-cutting helpers that should remain domain-neutral.
-- Includes custom error, date helpers, normalization, and response formatting.
+- Cross-cutting helpers that should stay domain-neutral.
 
-## Non-Source Directories
-
-### `scripts/`
-
-- Intended for operational or maintenance tasks.
-- `seed.js`: likely database seed/bootstrap data script.
-- `syncPublicData.js`: likely sync/import job for Seoul public datasets.
-
-Both files are currently empty placeholders.
-
-### `tests/`
-
-- Intended automated test directory.
-- Present files suggest focus on public data and recommendation flows first.
-
-Both test files are currently empty placeholders.
+## Supporting Directories
 
 ### `docs/`
 
-- Documentation directory for backend-only reference material.
-- `STRUCTURE.md` belongs here because it explains repository organization rather than runtime behavior.
+- Human-facing backend reference material.
+- `API.md`: API draft and endpoint plan
+- `STRUCTURE.md`: repository structure and runtime layout
+
+### `scripts/`
+
+- Project-local setup or operational jobs.
+- `seed.ts` and `syncPublicData.ts` are placeholders.
+
+### `tests/`
+
+- Placeholder test directory.
+- Test targets are present, but no runner is wired yet.
 
 ## Current State Notes
 
-- `package.json` is currently empty.
-- All inspected files under `src/`, `scripts/`, and `tests/` are currently empty.
-- The project already has a reasonable backend layering strategy even though implementation has not started yet.
+- TypeScript build and Express bootstrap are working.
+- Formatting and linting are configured and runnable.
+- Pre-commit formatting/lint automation is configured through Husky and lint-staged.
+- PostgreSQL connection scaffolding exists, but no domain repository logic is implemented yet.
+- Most files outside the runtime/config/bootstrap path are still placeholders.
+
+## Current Live Endpoints
+
+- `GET /health`
+- `GET /api`
 
 ## Recommended Conventions Going Forward
 
-1. Keep request flow consistent as `routes -> controllers -> services -> repositories/models`.
-2. Keep external API calls inside `clients/` rather than directly inside controllers or services.
-3. Add new validators and tests per domain whenever a new route is introduced.
-4. If domain complexity grows, consider creating per-domain folders such as `src/modules/recommendation/` to keep related files closer together.
+1. Keep the request flow as `routes -> controllers -> services -> repositories/models`.
+2. Keep external API calls inside `clients/`.
+3. Add new features as full vertical slices, not one isolated file at a time.
+4. Keep scoring logic centralized in `services/scoring.service.ts`.
+5. Run `npm run format` and `npm run lint` after meaningful changes.
