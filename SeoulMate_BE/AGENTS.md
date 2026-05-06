@@ -2,6 +2,7 @@
 
 - SeoulMate backend provides APIs for authentication, user data, AI-assisted course recommendation, public data ingestion, and scoring-based ranking.
 - The repository is now a TypeScript Express scaffold with build, formatting, linting, and pre-commit automation in place; most domain modules are still placeholders.
+- The authentication domain now includes a working in-memory sign-up flow at `POST /api/auth/signup`.
 - Tech stack:
   - Runtime: Node.js
   - Framework: Express
@@ -27,7 +28,7 @@ SeoulMate_BE/
 |   `-- settings.json           # Shared VS Code format/lint-on-save settings
 |-- AGENTS.md                   # Repository-level instructions for contributors and agents
 |-- docs/
-|   |-- API.md                  # API draft documentation
+|   |-- API.md                  # API reference including implemented signup endpoint
 |   `-- STRUCTURE.md            # Backend structure reference
 |-- eslint.config.mjs           # ESLint flat config for TypeScript
 |-- package.json                # Scripts, dependencies, lint-staged config
@@ -51,6 +52,7 @@ SeoulMate_BE/
 |   |   |-- datasetType.ts      # Public dataset category constants placeholder
 |   |   `-- scoreWeight.ts      # Recommendation weight constants placeholder
 |   |-- controllers/
+|   |   |-- auth.controller.ts  # Signup request/response controller
 |   |   |-- ai.controller.ts
 |   |   |-- publicData.controller.ts
 |   |   |-- recommendation.controller.ts
@@ -66,21 +68,27 @@ SeoulMate_BE/
 |   |   |-- score.model.ts
 |   |   `-- user.model.ts
 |   |-- repositories/
+|   |   |-- inMemoryDatabase.ts # Temporary in-memory user/preference storage
+|   |   |-- preference.repository.ts
 |   |   |-- publicData.repository.ts
 |   |   |-- recommendation.repository.ts
 |   |   `-- user.repository.ts
 |   |-- routes/
 |   |   |-- ai.routes.ts
+|   |   |-- auth.routes.ts
 |   |   |-- index.ts            # Minimal `/api` root endpoint
 |   |   |-- publicData.routes.ts
 |   |   |-- recommendation.routes.ts
 |   |   `-- user.routes.ts
 |   |-- services/
+|   |   |-- auth.service.ts
 |   |   |-- ai.service.ts
 |   |   |-- publicData.service.ts
 |   |   |-- recommendation.service.ts
 |   |   |-- scoring.service.ts
 |   |   `-- user.service.ts
+|   |-- types/
+|   |   `-- auth.types.ts       # Signup request/response and persistence types
 |   |-- utils/
 |   |   |-- ApiError.ts
 |   |   |-- date.ts
@@ -99,7 +107,7 @@ SeoulMate_BE/
   - `src/routes`: declare endpoint paths and attach controllers/middleware
   - `src/controllers`: handle HTTP request/response mapping
   - `src/services`: business logic and orchestration
-  - `src/repositories`: PostgreSQL access boundary
+  - `src/repositories`: persistence boundary; currently mixed PostgreSQL scaffolding and temporary in-memory auth storage
   - `src/models`: persistence-facing entities or schema definitions
   - `src/clients`: external API integration boundary
   - `src/config`: environment/config/database setup
@@ -123,6 +131,10 @@ SeoulMate_BE/
   - A `Recommendation` can be derived from multiple `PublicDataset` inputs
   - A `Recommendation` can contain or reference score dimensions from `Score`
 - Business rules the AI must not violate:
+  - Keep the signup provider list limited to `local`, `kakao`, `google` unless product requirements change
+  - Keep allowed signup vibes limited to the values defined in `src/types/auth.types.ts` and `src/validators/user.validator.ts`
+  - For `local` signup, password must be hashed with `bcrypt` before persistence
+  - For `kakao` and `google` signup, ignore the incoming password field and persist `null`
   - Do not ignore congestion, travel burden, safety, and cost when implementing recommendation ranking
   - Do not bypass centralized weight definitions in `src/constants/scoreWeight.ts`
   - Do not call external providers directly from controllers
@@ -147,6 +159,7 @@ SeoulMate_BE/
   - Prefer TypeScript for all backend code
   - Keep controllers thin and move business logic into services
   - Keep SQL and persistence concerns inside repositories
+  - Temporary in-memory repositories should preserve ORM-like method shapes such as `findByEmail`, `findByNickname`, and `save`
   - Keep provider-specific request/response translation inside `clients`
   - Centralize environment access through `src/config/env.ts`
   - Prefer one primary export per file matching the file name
@@ -165,7 +178,11 @@ SeoulMate_BE/
 - Branch convention:
   - `<!-- TODO: fill in -->`
 - Commit message convention:
-  - `<!-- TODO: fill in -->`
+  - `<type>(<scope>): <summary>`
+  - Examples:
+    - `feat(auth): 회원가입 API 구현`
+    - `fix(auth): 회원가입 전역 에러 처리 연결`
+    - `chore(deps): 회원가입 의존성 추가`
 
 ## Build & Run
 
@@ -196,6 +213,7 @@ npm start
 - Current implemented bootstrap:
   - `GET /health`
   - `GET /api`
+  - `POST /api/auth/signup`
 - Required environment variables currently scaffolded:
   - `NODE_ENV`
   - `PORT`
@@ -261,6 +279,8 @@ npm start
   - Use `npm run format` and `npm run lint` after meaningful changes
 - Known pitfalls and fragile areas:
   - Most domain files are still placeholders, so names imply intent more than behavior
+  - Authentication persistence is currently in-memory only; restart clears users and preferences
+  - `bcrypt` and `uuid` are required runtime dependencies for signup
   - Git hooks are configured from a monorepo-like parent Git root, not from `SeoulMate_BE` as a standalone Git repository
   - The current Husky setup depends on `core.hooksPath` pointing to `SeoulMate_BE/.husky/_`
   - Provider choices are still undecided, so avoid vendor lock-in in public interfaces

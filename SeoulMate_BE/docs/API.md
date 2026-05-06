@@ -2,16 +2,17 @@
 
 ## Overview
 
-This document describes the planned API surface for `SeoulMate_BE`.
-At the repository level, only bootstrap endpoints are currently implemented; the domain endpoints below are design-level targets derived from the current product specification.
+This document describes the API surface for `SeoulMate_BE`.
+Bootstrap endpoints and the sign-up endpoint are implemented; the remaining domain endpoints below are still design-level targets.
 
 ## Current Implementation Status
 
 - Currently implemented:
   - `GET /health`
   - `GET /api`
+  - `POST /api/auth/signup`
 - Planned but not implemented yet:
-  - authentication APIs
+  - login, refresh, logout APIs
   - user APIs
   - course recommendation APIs
   - place APIs
@@ -19,7 +20,7 @@ At the repository level, only bootstrap endpoints are currently implemented; the
 ## Base URL
 
 ```text
-<!-- TODO: fill in -->
+http://localhost:<PORT>/api
 ```
 
 ## Authentication Model
@@ -45,7 +46,7 @@ Authorization: Bearer <JWT>
 | Bootstrap | API root               | Public | `GET`    | `/api`                      | Implemented |
 | Auth      | Login                  | User   | `POST`   | `/auth/login`               | Planned     |
 | Auth      | Refresh token          | User   | `POST`   | `/auth/refresh`             | Planned     |
-| Auth      | Sign up                | User   | `POST`   | `/auth/signup`              | Planned     |
+| Auth      | Sign up                | User   | `POST`   | `/auth/signup`              | Implemented |
 | Auth      | Logout                 | User   | `POST`   | `/auth/logout`              | Planned     |
 | User      | Get current user       | User   | `GET`    | `/users/me`                 | Planned     |
 | User      | Update preferences     | User   | `PATCH`  | `/users/me/preferences`     | Planned     |
@@ -139,13 +140,54 @@ Authorization: Bearer <JWT>
 - Request Body:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "email": "local1@example.com",
+  "password": "password123",
+  "nickname": "서울러버",
+  "provider": "local",
+  "preferences": {
+    "vibes": ["조용한", "감성적인"]
+  }
+}
 ```
 
 - Response:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "id": "2dd33eb8-8599-4881-aec2-6433f193a07c",
+  "email": "local1@example.com",
+  "nickname": "서울러버",
+  "createdAt": "2026-05-06T10:00:00.000Z"
+}
+```
+
+- Validation rules:
+  - `email`: required, valid email format
+  - `nickname`: required, 2 to 10 characters
+  - `provider`: required, one of `local`, `kakao`, `google`
+  - `password`: required only when `provider` is `local`, minimum 8 characters
+  - `preferences.vibes`: nullable array; allowed values are `조용한`, `힙한`, `낭만적인`, `활기찬`, `고즈넉한`, `현대적인`, `감성적인`, `자연친화적`
+- Provider behavior:
+  - `local`: password is hashed with `bcrypt` using `saltRounds=10`
+  - `kakao`, `google`: incoming password is ignored
+- Status codes:
+  - `201`: sign-up success
+  - `400`: validation error
+  - `409`: duplicate email or nickname
+  - `500`: internal server error
+- Example error responses:
+
+```json
+{
+  "message": "이미 사용 중인 이메일입니다."
+}
+```
+
+```json
+{
+  "message": "local 회원가입은 8자 이상의 password가 필요합니다."
+}
 ```
 
 ### `POST /auth/logout`
@@ -368,9 +410,8 @@ Authorization: Bearer <JWT>
 
 ## Open Items
 
-- Request DTOs are not defined in the codebase yet.
-- Response DTOs are not defined in the codebase yet.
-- Error code policy is not defined in the codebase yet.
+- Signup request/response DTOs are implemented in `src/types/auth.types.ts`.
+- Signup error policy is implemented through `src/utils/ApiError.ts` and `src/middlewares/errorHandler.ts`.
 - Pagination response shape is not defined in the codebase yet.
 - Admin authorization strategy is not defined in the codebase yet.
 - STT, map, and some data provider integration details are still undecided.
