@@ -2,8 +2,19 @@
 
 ## Overview
 
-이 문서는 현재 정의된 `SeoulMate_BE` 백엔드 API 초안을 정리한 문서다.
-현 시점 기준으로 엔드포인트 목록은 정의되어 있지만, 요청/응답 스키마와 실제 구현 코드는 아직 확정되지 않았다.
+This document describes the planned API surface for `SeoulMate_BE`.
+At the repository level, only bootstrap endpoints are currently implemented; the domain endpoints below are design-level targets derived from the current product specification.
+
+## Current Implementation Status
+
+- Currently implemented:
+  - `GET /health`
+  - `GET /api`
+- Planned but not implemented yet:
+  - authentication APIs
+  - user APIs
+  - course recommendation APIs
+  - place APIs
 
 ## Base URL
 
@@ -11,46 +22,81 @@
 <!-- TODO: fill in -->
 ```
 
-## Authentication
+## Authentication Model
 
-- 인증 방식:
+- Authentication scheme:
   - JWT Bearer Token
-- 인증 헤더 형식:
+- Standard header format:
 
 ```http
 Authorization: Bearer <JWT>
 ```
 
-- 인증이 필요한 API는 각 엔드포인트의 `기타` 항목에 명시했다.
+- Notes:
+  - User auth endpoints are planned.
+  - Admin authorization policy is not defined in the repository yet.
+  - Refresh token transport and storage policy still need to be fixed.
 
 ## Endpoint Summary
 
-| 카테고리 | 기능 | 사용자 | Method | URL |
-|---|---|---|---|---|
-| 인증 | 로그인 | 유저 | `POST` | `/auth/login` |
-| 인증 | 토큰 갱신 | 유저 | `POST` | `/auth/refresh` |
-| 인증 | 회원가입 | 유저 | `POST` | `/auth/signup` |
-| 인증 | 로그아웃 | 유저 | `POST` | `/auth/logout` |
-| 유저 | 내 정보 조회 | 유저 | `GET` | `/users/me` |
-| 유저 | 선호 설정 수정 | 유저 | `PATCH` | `/users/me/preferences` |
-| 유저 | 모든 유저 목록 | 관리자 | `GET` | `/users` |
-| 유저 | 유저 조회 | 관리자 | `GET` | `/users/{user_id}` |
-| 코스 | 코스 추천 요청 | 유저 | `POST` | `/courses/recommend` |
-| 코스 | 코스 상세 조회 | 유저 | `GET` | `/courses/{course_id}` |
-| 코스 | 코스 저장 | 유저 | `POST` | `/courses/{course_id}/save` |
-| 코스 | 코스 저장 취소 | 유저 | `DELETE` | `/courses/{course_id}/save` |
-| 코스 | 저장 코스 목록 | 유저 | `GET` | `/courses/saved` |
-| 장소 | 장소 상세 조회 | 유저 | `GET` | `/places/{place_id}` |
-| 검색 | 장소 검색 | 유저 | `GET` | `/places/search` |
+| Category  | Feature                | Actor  | Method   | URL                         | Status      |
+| --------- | ---------------------- | ------ | -------- | --------------------------- | ----------- |
+| Bootstrap | Health check           | Public | `GET`    | `/health`                   | Implemented |
+| Bootstrap | API root               | Public | `GET`    | `/api`                      | Implemented |
+| Auth      | Login                  | User   | `POST`   | `/auth/login`               | Planned     |
+| Auth      | Refresh token          | User   | `POST`   | `/auth/refresh`             | Planned     |
+| Auth      | Sign up                | User   | `POST`   | `/auth/signup`              | Planned     |
+| Auth      | Logout                 | User   | `POST`   | `/auth/logout`              | Planned     |
+| User      | Get current user       | User   | `GET`    | `/users/me`                 | Planned     |
+| User      | Update preferences     | User   | `PATCH`  | `/users/me/preferences`     | Planned     |
+| User      | List users             | Admin  | `GET`    | `/users`                    | Planned     |
+| User      | Get user by ID         | Admin  | `GET`    | `/users/{user_id}`          | Planned     |
+| Course    | Request recommendation | User   | `POST`   | `/courses/recommend`        | Planned     |
+| Course    | Get course detail      | User   | `GET`    | `/courses/{course_id}`      | Planned     |
+| Course    | Save course            | User   | `POST`   | `/courses/{course_id}/save` | Planned     |
+| Course    | Unsave course          | User   | `DELETE` | `/courses/{course_id}/save` | Planned     |
+| Course    | List saved courses     | User   | `GET`    | `/courses/saved`            | Planned     |
+| Place     | Get place detail       | User   | `GET`    | `/places/{place_id}`        | Planned     |
+| Search    | Search places          | User   | `GET`    | `/places/search`            | Planned     |
+
+## Bootstrap APIs
+
+### `GET /health`
+
+- Purpose: runtime health check
+- Actor: public
+- Auth: not required
+- Query Params: none
+- Response:
+
+```json
+{
+  "message": "SeoulMate_BE is running"
+}
+```
+
+### `GET /api`
+
+- Purpose: API root check
+- Actor: public
+- Auth: not required
+- Query Params: none
+- Response:
+
+```json
+{
+  "message": "SeoulMate API root"
+}
+```
 
 ## Auth APIs
 
 ### `POST /auth/login`
 
-- 기능: 이메일/소셜 로그인
-- 사용자: 유저
-- 인증: 불필요
-- Query Params: 없음
+- Purpose: email or social login
+- Actor: user
+- Auth: not required
+- Query Params: none
 - Request Body:
 
 ```json
@@ -63,15 +109,15 @@ Authorization: Bearer <JWT>
 <!-- TODO: fill in -->
 ```
 
-- 기타:
-  - 이메일 로그인과 소셜 로그인 방식을 함께 지원하는지 세부 정책 확정 필요
+- Notes:
+  - Final login modes and provider list are not defined in the repository yet.
 
 ### `POST /auth/refresh`
 
-- 기능: Access Token 재발급
-- 사용자: 유저
-- 인증: 불필요 또는 Refresh Token 기반
-- Query Params: 없음
+- Purpose: reissue access token
+- Actor: user
+- Auth: refresh-token based
+- Query Params: none
 - Request Body:
 
 ```json
@@ -86,10 +132,10 @@ Authorization: Bearer <JWT>
 
 ### `POST /auth/signup`
 
-- 기능: 신규 유저 등록
-- 사용자: 유저
-- 인증: 불필요
-- Query Params: 없음
+- Purpose: register a new user
+- Actor: user
+- Auth: not required
+- Query Params: none
 - Request Body:
 
 ```json
@@ -104,10 +150,10 @@ Authorization: Bearer <JWT>
 
 ### `POST /auth/logout`
 
-- 기능: 토큰 무효화
-- 사용자: 유저
-- 인증: `<!-- TODO: fill in -->`
-- Query Params: 없음
+- Purpose: invalidate the current session or token
+- Actor: user
+- Auth: `<!-- TODO: fill in -->`
+- Query Params: none
 - Request Body:
 
 ```json
@@ -124,27 +170,27 @@ Authorization: Bearer <JWT>
 
 ### `GET /users/me`
 
-- 기능: 로그인 유저 정보 조회
-- 사용자: 유저
-- 인증: 필요
-- Query Params: 없음
-- Path Params: 없음
+- Purpose: get the currently authenticated user
+- Actor: user
+- Auth: required
+- Query Params: none
+- Path Params: none
 - Response:
 
 ```json
 <!-- TODO: fill in -->
 ```
 
-- 기타:
-  - `Authorization` 헤더 필요 (`Bearer JWT`)
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ### `PATCH /users/me/preferences`
 
-- 기능: 분위기, 지역, 예산 선호 수정
-- 사용자: 유저
-- 인증: 필요
-- Query Params: 없음
-- Path Params: 없음
+- Purpose: update mood, region, and budget preferences
+- Actor: user
+- Auth: required
+- Query Params: none
+- Path Params: none
 - Request Body:
 
 ```json
@@ -157,14 +203,14 @@ Authorization: Bearer <JWT>
 <!-- TODO: fill in -->
 ```
 
-- 기타:
-  - `Authorization` 헤더 필요 (`Bearer JWT`)
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ### `GET /users`
 
-- 기능: 전체 유저 목록 조회
-- 사용자: 관리자
-- 인증: `<!-- TODO: fill in -->`
+- Purpose: list all users
+- Actor: admin
+- Auth: `<!-- TODO: fill in -->`
 - Query Params:
   - `page`
   - `page_size`
@@ -176,9 +222,9 @@ Authorization: Bearer <JWT>
 
 ### `GET /users/{user_id}`
 
-- 기능: ID로 유저 상세 조회
-- 사용자: 관리자
-- 인증: `<!-- TODO: fill in -->`
+- Purpose: get one user by ID
+- Actor: admin
+- Auth: `<!-- TODO: fill in -->`
 - Path Params:
   - `user_id`
 - Response:
@@ -191,10 +237,10 @@ Authorization: Bearer <JWT>
 
 ### `POST /courses/recommend`
 
-- 기능: AI 코스 추천 생성
-- 사용자: 유저
-- 인증: 필요
-- Query Params: 없음
+- Purpose: generate AI-assisted course recommendations
+- Actor: user
+- Auth: required
+- Query Params: none
 - Request Body:
 
 ```json
@@ -207,15 +253,15 @@ Authorization: Bearer <JWT>
 <!-- TODO: fill in -->
 ```
 
-- 기타:
-  - `Authorization` 헤더 필요 (`Bearer JWT`)
-  - 추천 로직은 혼잡, 이동, 안전, 비용 가중치를 반영해야 함
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
+  - Recommendation ranking must account for congestion, travel burden, safety, and cost
 
 ### `GET /courses/{course_id}`
 
-- 기능: 코스 상세 정보 조회
-- 사용자: 유저
-- 인증: 필요
+- Purpose: get course detail
+- Actor: user
+- Auth: required
 - Path Params:
   - `course_id`
 - Response:
@@ -224,14 +270,14 @@ Authorization: Bearer <JWT>
 <!-- TODO: fill in -->
 ```
 
-- 기타:
-  - `Authorization` 헤더 필요 (`Bearer JWT`)
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ### `POST /courses/{course_id}/save`
 
-- 기능: 코스 히스토리 저장
-- 사용자: 유저
-- 인증: 필요
+- Purpose: save a course to user history
+- Actor: user
+- Auth: required
 - Path Params:
   - `course_id`
 - Request Body:
@@ -246,14 +292,14 @@ Authorization: Bearer <JWT>
 <!-- TODO: fill in -->
 ```
 
-- 기타:
-  - `Authorization` 헤더 필요 (`Bearer JWT`)
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ### `DELETE /courses/{course_id}/save`
 
-- 기능: 저장된 코스 삭제
-- 사용자: 유저
-- 인증: 필요
+- Purpose: remove a saved course
+- Actor: user
+- Auth: required
 - Path Params:
   - `course_id`
 - Response:
@@ -262,14 +308,14 @@ Authorization: Bearer <JWT>
 <!-- TODO: fill in -->
 ```
 
-- 기타:
-  - `Authorization` 헤더 필요 (`Bearer JWT`)
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ### `GET /courses/saved`
 
-- 기능: 저장한 코스 목록 조회
-- 사용자: 유저
-- 인증: 필요
+- Purpose: list saved courses
+- Actor: user
+- Auth: required
 - Query Params:
   - `page`
   - `page_size`
@@ -279,16 +325,16 @@ Authorization: Bearer <JWT>
 <!-- TODO: fill in -->
 ```
 
-- 기타:
-  - `Authorization` 헤더 필요 (`Bearer JWT`)
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ## Place APIs
 
 ### `GET /places/{place_id}`
 
-- 기능: 장소 상세 정보 조회
-- 사용자: 유저
-- 인증: 필요
+- Purpose: get place detail
+- Actor: user
+- Auth: required
 - Path Params:
   - `place_id`
 - Response:
@@ -297,14 +343,14 @@ Authorization: Bearer <JWT>
 <!-- TODO: fill in -->
 ```
 
-- 기타:
-  - `Authorization` 헤더 필요 (`Bearer JWT`)
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ### `GET /places/search`
 
-- 기능: 장소명, 지역 기반 장소 검색
-- 사용자: 유저
-- 인증: 필요
+- Purpose: search places by keyword and region
+- Actor: user
+- Auth: required
 - Query Params:
   - `q`
   - `region`
@@ -317,11 +363,14 @@ Authorization: Bearer <JWT>
 <!-- TODO: fill in -->
 ```
 
-- 기타:
-  - `Authorization` 헤더 필요 (`Bearer JWT`)
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
-## Notes
+## Open Items
 
-- 현재 저장소에는 실제 라우트 구현이 없으므로, 이 문서는 기획/설계 기준의 API 초안이다.
-- 인증/인가 정책 중 관리자 권한 판별 방식은 아직 저장소에서 확인되지 않았다.
-- 요청/응답 DTO, 에러 코드, 페이징 응답 형식은 추후 확정 필요하다.
+- Request DTOs are not defined in the codebase yet.
+- Response DTOs are not defined in the codebase yet.
+- Error code policy is not defined in the codebase yet.
+- Pagination response shape is not defined in the codebase yet.
+- Admin authorization strategy is not defined in the codebase yet.
+- STT, map, and some data provider integration details are still undecided.
