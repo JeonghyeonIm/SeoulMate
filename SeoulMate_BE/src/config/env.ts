@@ -1,0 +1,23 @@
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const parsePort = (value: string | undefined, fallback: number): number => {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+export const env = {
+  NODE_ENV: process.env.NODE_ENV ?? "development",
+  PORT: parsePort(process.env.PORT, 3000),
+  DATABASE_URL: process.env.DATABASE_URL ?? "",
+  POSTGRES_HOST: process.env.POSTGRES_HOST ?? "localhost",
+  POSTGRES_PORT: parsePort(process.env.POSTGRES_PORT, 5432),
+  POSTGRES_DB: process.env.POSTGRES_DB ?? "seoulmate",
+  POSTGRES_USER: process.env.POSTGRES_USER ?? "postgres",
+  POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD ?? ""
+} as const;
