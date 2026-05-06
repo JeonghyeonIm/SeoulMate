@@ -22,6 +22,7 @@ SeoulMate_BE/
 |   |-- DB.md
 |   |-- DEPLOYMENT.md
 |   |-- DOMAIN_SETUP.md
+|   |-- DOMAIN_AND_SERVER_BINDING.md
 |   |-- PUBLIC_DATA_APIS.md
 |   |-- VPC_SETUP.md
 |   `-- STRUCTURE.md
@@ -147,6 +148,7 @@ SeoulMate_BE/
 - `DB.md`: PostgreSQL 기반 DB 설계 문서
 - `DEPLOYMENT.md`: EC2, EIP, RDS, Nginx, PM2 기준 실제 배포 절차
 - `DOMAIN_SETUP.md`: 가비아 도메인과 AWS 서버 연결 절차
+- `DOMAIN_AND_SERVER_BINDING.md`: EIP, DNS, 프런트, 백엔드, Nginx 값 연결 정리
 - `PUBLIC_DATA_APIS.md`: 서울 공공데이터 API 후보 및 수집 전략
 - `VPC_SETUP.md`: VPC, subnet, route table, RDS subnet group 구성 절차
 - `STRUCTURE.md`: 현재 백엔드 구조 설명

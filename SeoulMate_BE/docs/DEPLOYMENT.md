@@ -351,6 +351,7 @@ api.yourdomain.com -> 43.xx.xx.xx
 도메인을 가비아에서 구매했다면 연결 방식은 아래 문서를 같이 참고합니다.
 
 - [DOMAIN_SETUP.md](/abs/C:/Users/DGSO1/SeoulMate/SeoulMate_BE/docs/DOMAIN_SETUP.md)
+- [DOMAIN_AND_SERVER_BINDING.md](/abs/C:/Users/DGSO1/SeoulMate/SeoulMate_BE/docs/DOMAIN_AND_SERVER_BINDING.md)
 
 ## 15. HTTPS 적용
 
@@ -428,3 +429,4 @@ sudo certbot --nginx -d api.yourdomain.com
 - [AWS_SECURITY_GROUPS.md](/abs/C:/Users/DGSO1/SeoulMate/SeoulMate_BE/docs/AWS_SECURITY_GROUPS.md)
 - [DB.md](/abs/C:/Users/DGSO1/SeoulMate/SeoulMate_BE/docs/DB.md)
 - [DOMAIN_SETUP.md](/abs/C:/Users/DGSO1/SeoulMate/SeoulMate_BE/docs/DOMAIN_SETUP.md)
+- [DOMAIN_AND_SERVER_BINDING.md](/abs/C:/Users/DGSO1/SeoulMate/SeoulMate_BE/docs/DOMAIN_AND_SERVER_BINDING.md)
