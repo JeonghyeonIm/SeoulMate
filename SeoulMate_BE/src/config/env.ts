@@ -38,5 +38,6 @@ export const env = {
   POSTGRES_PORT: parsePort(process.env.POSTGRES_PORT, 5432),
   POSTGRES_DB: process.env.POSTGRES_DB ?? "seoulmate",
   POSTGRES_USER: process.env.POSTGRES_USER ?? "postgres",
-  POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD ?? ""
+  POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD ?? "",
+  SEOUL_OPEN_API_KEY: process.env.SEOUL_OPEN_API_KEY ?? ""
 } as const;
