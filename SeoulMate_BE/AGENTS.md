@@ -1,165 +1,167 @@
 ## Project Overview
 
-- SeoulMate backend is intended to provide user-facing APIs for user management, public data ingestion, AI-assisted course generation, and recommendation scoring.
-- The current repository is a backend skeleton: directory boundaries are established, but the implementation files are still empty placeholders.
+- SeoulMate backend provides APIs for authentication, user data, AI-assisted course recommendation, public data ingestion, and scoring-based ranking.
+- The repository is now a TypeScript Express scaffold with build, formatting, linting, and pre-commit automation in place; most domain modules are still placeholders.
 - Tech stack:
   - Runtime: Node.js
   - Framework: Express
-  - Language: TypeScript as target standard, but current files are JavaScript placeholders
-  - Database: PostgreSQL
-  - Infra: EC2 + RDS (PostgreSQL)
+  - Language: TypeScript
+  - Database: PostgreSQL via `pg`
+  - Infra target: EC2 + RDS (PostgreSQL)
 - Architecture pattern:
-  - Current repository structure follows a layered MVC-style backend: `routes -> controllers -> services -> repositories/models`
-  - External systems are isolated under `clients/`
+  - Layered MVC-style backend: `routes -> controllers -> services -> repositories/models`
+  - External providers are isolated under `clients`
 
 ## Directory Structure
 
 ```text
 SeoulMate_BE/
-|-- AGENTS.md                    # Repository-level instructions for contributors and agents
+|-- .env.example                # Local environment variable template
+|-- .gitignore                  # Ignore rules for env, build, caches, editor files
+|-- .husky/
+|   |-- pre-commit              # Runs lint-staged before commit
+|   `-- _/                      # Git hooks wrapper files used by Husky
+|-- .prettierignore             # Files excluded from Prettier
+|-- .prettierrc.json            # Prettier formatting rules
+|-- .vscode/
+|   `-- settings.json           # Shared VS Code format/lint-on-save settings
+|-- AGENTS.md                   # Repository-level instructions for contributors and agents
 |-- docs/
-|   `-- STRUCTURE.md             # Backend structure reference
-|-- package.json                 # Node package manifest; currently empty
+|   |-- API.md                  # API draft documentation
+|   `-- STRUCTURE.md            # Backend structure reference
+|-- eslint.config.mjs           # ESLint flat config for TypeScript
+|-- package.json                # Scripts, dependencies, lint-staged config
 |-- scripts/
-|   |-- seed.js                  # Seed/bootstrap script placeholder
-|   `-- syncPublicData.js        # Public data sync/import script placeholder
+|   |-- seed.ts                 # Seed/bootstrap placeholder
+|   |-- setupHusky.mjs          # Git hook setup script
+|   `-- syncPublicData.ts       # Public data sync/import placeholder
 |-- src/
-|   |-- app.js                   # Express app composition entrypoint placeholder
-|   |-- server.js                # Process bootstrap/server startup placeholder
+|   |-- app.ts                  # Express app setup
+|   |-- server.ts               # Server bootstrap
 |   |-- clients/
-|   |   |-- map.client.js        # Map or routing API client placeholder
-|   |   |-- openai.client.js     # LLM integration client placeholder
-|   |   `-- seoulOpenData.client.js
-|   |                             # Seoul public/open data API client placeholder
+|   |   |-- map.client.ts       # Map/routing API client placeholder
+|   |   |-- openai.client.ts    # LLM client placeholder
+|   |   `-- seoulOpenData.client.ts
+|   |                             # Seoul public data client placeholder
 |   |-- config/
-|   |   |-- db.js                # Database connection config placeholder
-|   |   |-- env.js               # Environment variable loading/validation placeholder
-|   |   `-- openai.js            # OpenAI-specific config placeholder
+|   |   |-- db.ts               # PostgreSQL pool setup
+|   |   |-- env.ts              # Environment loading/normalization
+|   |   `-- openai.ts           # OpenAI config placeholder
 |   |-- constants/
-|   |   |-- datasetType.js       # Public dataset category constants placeholder
-|   |   `-- scoreWeight.js       # Recommendation scoring weight constants placeholder
+|   |   |-- datasetType.ts      # Public dataset category constants placeholder
+|   |   `-- scoreWeight.ts      # Recommendation weight constants placeholder
 |   |-- controllers/
-|   |   |-- ai.controller.js     # HTTP controller for AI endpoints placeholder
-|   |   |-- publicData.controller.js
-|   |   |                         # HTTP controller for public data endpoints placeholder
-|   |   |-- recommendation.controller.js
-|   |   |                         # HTTP controller for recommendation endpoints placeholder
-|   |   `-- user.controller.js   # HTTP controller for user endpoints placeholder
+|   |   |-- ai.controller.ts
+|   |   |-- publicData.controller.ts
+|   |   |-- recommendation.controller.ts
+|   |   `-- user.controller.ts
 |   |-- middlewares/
-|   |   |-- asyncHandler.js      # Async error wrapper placeholder
-|   |   |-- auth.js              # Authentication middleware placeholder
-|   |   |-- errorHandler.js      # Global error handler placeholder
-|   |   `-- validateRequest.js   # Request validation middleware placeholder
+|   |   |-- asyncHandler.ts
+|   |   |-- auth.ts
+|   |   |-- errorHandler.ts
+|   |   `-- validateRequest.ts
 |   |-- models/
-|   |   |-- publicDataset.model.js
-|   |   |                         # Public dataset persistence model placeholder
-|   |   |-- recommendation.model.js
-|   |   |                         # Recommendation persistence model placeholder
-|   |   |-- score.model.js       # Score persistence model placeholder
-|   |   `-- user.model.js        # User persistence model placeholder
+|   |   |-- publicDataset.model.ts
+|   |   |-- recommendation.model.ts
+|   |   |-- score.model.ts
+|   |   `-- user.model.ts
 |   |-- repositories/
-|   |   |-- publicData.repository.js
-|   |   |                         # Public data query layer placeholder
-|   |   |-- recommendation.repository.js
-|   |   |                         # Recommendation query layer placeholder
-|   |   `-- user.repository.js   # User query layer placeholder
+|   |   |-- publicData.repository.ts
+|   |   |-- recommendation.repository.ts
+|   |   `-- user.repository.ts
 |   |-- routes/
-|   |   |-- ai.routes.js         # AI route declarations placeholder
-|   |   |-- index.js             # Route aggregator placeholder
-|   |   |-- publicData.routes.js # Public data route declarations placeholder
-|   |   |-- recommendation.routes.js
-|   |   |                         # Recommendation route declarations placeholder
-|   |   `-- user.routes.js       # User route declarations placeholder
+|   |   |-- ai.routes.ts
+|   |   |-- index.ts            # Minimal `/api` root endpoint
+|   |   |-- publicData.routes.ts
+|   |   |-- recommendation.routes.ts
+|   |   `-- user.routes.ts
 |   |-- services/
-|   |   |-- ai.service.js        # AI orchestration/business logic placeholder
-|   |   |-- publicData.service.js
-|   |   |                         # Public data normalization/import logic placeholder
-|   |   |-- recommendation.service.js
-|   |   |                         # Recommendation orchestration logic placeholder
-|   |   |-- scoring.service.js   # Score calculation logic placeholder
-|   |   `-- user.service.js      # User domain logic placeholder
+|   |   |-- ai.service.ts
+|   |   |-- publicData.service.ts
+|   |   |-- recommendation.service.ts
+|   |   |-- scoring.service.ts
+|   |   `-- user.service.ts
 |   |-- utils/
-|   |   |-- ApiError.js          # Shared application error type placeholder
-|   |   |-- date.js              # Date utility placeholder
-|   |   |-- normalize.js         # Data normalization utility placeholder
-|   |   `-- response.js          # API response formatter placeholder
+|   |   |-- ApiError.ts
+|   |   |-- date.ts
+|   |   |-- normalize.ts
+|   |   `-- response.ts
 |   `-- validators/
-|       |-- recommendation.validator.js
-|       |                         # Recommendation request validator placeholder
-|       `-- user.validator.js    # User request validator placeholder
-`-- tests/
-    |-- publicData.test.js       # Public data test placeholder
-    `-- recommendation.test.js   # Recommendation test placeholder
+|       |-- recommendation.validator.ts
+|       `-- user.validator.ts
+|-- tests/
+|   |-- publicData.test.ts
+|   `-- recommendation.test.ts
+`-- tsconfig.json               # TypeScript compiler settings
 ```
 
 - Major roles:
-  - `src/routes`: declare endpoint paths and attach middleware/controller handlers
-  - `src/controllers`: translate HTTP requests into service calls and HTTP responses
-  - `src/services`: hold business logic and orchestration across repositories and clients
-  - `src/repositories`: isolate PostgreSQL access and query logic
-  - `src/models`: define database-facing entities or schemas
-  - `src/clients`: isolate all external API calls, authentication headers, retries, and response mapping
-  - `src/config`: centralize env parsing, DB setup, and provider configuration
-  - `src/constants`: store domain constants that must stay synchronized across features
-  - `src/middlewares`: cross-cutting request pipeline logic
-  - `src/validators`: request shape validation before controller execution
-  - `scripts`: operational jobs such as seeding and public dataset synchronization
-  - `tests`: automated tests for domain behavior and integration points
+  - `src/routes`: declare endpoint paths and attach controllers/middleware
+  - `src/controllers`: handle HTTP request/response mapping
+  - `src/services`: business logic and orchestration
+  - `src/repositories`: PostgreSQL access boundary
+  - `src/models`: persistence-facing entities or schema definitions
+  - `src/clients`: external API integration boundary
+  - `src/config`: environment/config/database setup
+  - `scripts`: setup or operational jobs
+  - `docs`: human-facing backend reference docs
 
 ## Key Domain Concepts
 
 - Core entities inferred from the repository:
-  - `User`: stores user identity, profile, preferences, and possibly travel constraints
-  - `PublicDataset`: stores imported Seoul public/open data records used as recommendation inputs
-  - `Recommendation`: stores generated or selected courses/places for a user
-  - `Score`: stores weighted evaluation results used to rank recommendations
-- External domain inputs:
-  - Seoul open/public datasets for congestion, safety, facilities, geography, and other city signals
-  - Map/routing provider for travel time, distance, and route feasibility
-  - STT provider for voice input processing
-  - LLM provider for course generation, explanation generation, and conversation topic generation
+  - `User`: account, profile, and user preference holder
+  - `PublicDataset`: imported Seoul public/open dataset records
+  - `Recommendation`: generated or curated course recommendation
+  - `Score`: weighted evaluation data used for ranking
+- External inputs:
+  - Seoul open/public datasets
+  - Map/routing API
+  - STT provider
+  - LLM provider for course generation and explanation
 - Likely relationships:
-  - A `User` can have many `Recommendation` records
+  - A `User` can own many `Recommendation` records
   - A `Recommendation` can be derived from multiple `PublicDataset` inputs
-  - A `Recommendation` can have one or more `Score` records or score dimensions
+  - A `Recommendation` can contain or reference score dimensions from `Score`
 - Business rules the AI must not violate:
-  - Do not generate recommendations that ignore the configured scoring dimensions: congestion, travel burden, safety, and cost
-  - Do not bypass weighted scoring constants in `src/constants/scoreWeight.js` when ranking recommendations
-  - Do not call external providers directly from controllers; go through `services` and `clients`
-  - Do not persist raw provider payloads without normalization when a dataset-specific normalization path exists
-  - Do not hardcode map, STT, or LLM vendor assumptions; these providers are still undecided
-  - Do not expose secrets, tokens, or provider credentials in source, logs, tests, or generated fixtures
-  - Do not couple public data ingestion logic to user-request latency if the operation is batch-oriented
+  - Do not ignore congestion, travel burden, safety, and cost when implementing recommendation ranking
+  - Do not bypass centralized weight definitions in `src/constants/scoreWeight.ts`
+  - Do not call external providers directly from controllers
+  - Do not persist raw third-party payloads without normalization when a normalization boundary exists
+  - Do not hardcode a specific map, STT, or LLM vendor into high-level service contracts
+  - Do not expose secrets or tokens in code, docs, tests, logs, or fixtures
 
 ## Development Conventions
 
 - Naming conventions:
-  - File names: lowercase camelCase with role suffixes, for example `user.service.ts`, `publicData.repository.ts`
-  - Route files: `<domain>.routes.ts`
-  - Controller files: `<domain>.controller.ts`
-  - Service files: `<domain>.service.ts`
-  - Repository files: `<domain>.repository.ts`
-  - Validator files: `<domain>.validator.ts`
-  - Model files: `<domain>.model.ts`
-  - Constants: descriptive singular or grouped nouns, for example `scoreWeight.ts`
-  - Variables and functions: `camelCase`
-  - Types, interfaces, and classes: `PascalCase`
-  - Enum members and true constants: `UPPER_SNAKE_CASE` if exported as fixed values
+  - Files: lowercase camelCase with role suffix, for example `user.service.ts`
+  - Routes: `<domain>.routes.ts`
+  - Controllers: `<domain>.controller.ts`
+  - Services: `<domain>.service.ts`
+  - Repositories: `<domain>.repository.ts`
+  - Validators: `<domain>.validator.ts`
+  - Models: `<domain>.model.ts`
+  - Variables/functions: `camelCase`
+  - Types/interfaces/classes: `PascalCase`
+  - Fixed exported constants: `UPPER_SNAKE_CASE` when appropriate
 - Code style rules:
-  - Prefer TypeScript for all new backend code
-  - Keep route handlers thin; validation and HTTP translation belong in controllers, not business rules
-  - Keep business rules in services
-  - Keep SQL and persistence logic in repositories
-  - Keep provider-specific request/response handling inside `clients`
-  - Validate request payloads before service execution
-  - Centralize environment access through `src/config/env.ts` once implemented
-  - Reuse shared response and error utilities instead of ad hoc response shapes
-  - Prefer one primary export per file matching the file role and domain
-  - Avoid mixing ingestion jobs and request-serving code in the same module
-- Formatting and annotations:
-  - `<!-- TODO: fill in -->`
-  - The repository does not yet contain formatter, linter, or annotation standards
-  - Until tooling is added, prefer consistent TypeScript strictness, explicit return types on exported functions, and concise comments only where the intent is non-obvious
+  - Prefer TypeScript for all backend code
+  - Keep controllers thin and move business logic into services
+  - Keep SQL and persistence concerns inside repositories
+  - Keep provider-specific request/response translation inside `clients`
+  - Centralize environment access through `src/config/env.ts`
+  - Prefer one primary export per file matching the file name
+  - Avoid mixing batch ingestion and request-serving logic in one module
+- Formatting and linting:
+  - Prettier is configured in `.prettierrc.json`
+  - ESLint is configured in `eslint.config.mjs`
+  - Shared VS Code save behavior is configured in `.vscode/settings.json`
+  - `npm run format`: run Prettier on the project
+  - `npm run format:check`: verify formatting only
+  - `npm run lint`: run ESLint
+  - `npm run lint:fix`: run ESLint with auto-fix
+  - Pre-commit hook runs `lint-staged` on staged files
+  - Staged `*.{ts,js,mjs,cjs,json,md}` files are formatted with Prettier
+  - Staged `*.ts` files are additionally auto-fixed with ESLint
 - Branch convention:
   - `<!-- TODO: fill in -->`
 - Commit message convention:
@@ -167,33 +169,34 @@ SeoulMate_BE/
 
 ## Build & Run
 
-- Current repository status:
-  - `package.json` is empty, so exact scripts cannot be determined yet
-  - All inspected source, script, and test files are empty placeholders
 - Dependency install:
 
 ```bash
 npm install
 ```
 
-- Local run:
+- Local development server:
 
 ```bash
-<!-- TODO: fill in -->
+npm run dev
 ```
 
-- Local build:
+- Build:
 
 ```bash
-<!-- TODO: fill in -->
+npm run build
 ```
 
-- Expected implementation direction:
-  - Initialize a TypeScript Express app
-  - Add PostgreSQL client or ORM
-  - Add environment loading and validation
-  - Add scripts for `dev`, `build`, `start`, `test`, and batch jobs
-- Required environment variables:
+- Run compiled output:
+
+```bash
+npm start
+```
+
+- Current implemented bootstrap:
+  - `GET /health`
+  - `GET /api`
+- Required environment variables currently scaffolded:
   - `NODE_ENV`
   - `PORT`
   - `DATABASE_URL`
@@ -202,6 +205,7 @@ npm install
   - `POSTGRES_DB`
   - `POSTGRES_USER`
   - `POSTGRES_PASSWORD`
+- Additional expected environment variables for planned features:
   - `OPENAI_API_KEY`
   - `STT_API_KEY`
   - `MAP_API_KEY`
@@ -215,28 +219,18 @@ npm install
   - `AWS_RDS_DB_NAME`
   - `AWS_RDS_USERNAME`
   - `AWS_RDS_PASSWORD`
-- Notes on env keys:
-  - The repository does not currently define `.env` parsing code
-  - Some keys above are inferred from the declared target architecture and external dependencies
-  - Final key names should be normalized in `src/config/env.ts`
 
 ## Test Strategy
 
 - Test location:
-  - `tests/publicData.test.js`
-  - `tests/recommendation.test.js`
+  - `tests/publicData.test.ts`
+  - `tests/recommendation.test.ts`
 - Current status:
-  - Test files exist but are empty placeholders
-  - No test runner or script is defined because `package.json` is empty
-- Intended test coverage:
-  - Unit tests:
-    - `services/` scoring calculations
-    - data normalization helpers in `utils/`
-    - validators for request schemas
-  - Integration tests:
-    - repository interactions with PostgreSQL
-    - `clients/` integration adapters with mocked external responses
-    - route-to-controller-to-service flows for recommendation and public data APIs
+  - Test files exist but are placeholders
+  - No `test` script is defined yet
+- Intended coverage:
+  - Unit tests for scoring, normalization, validators, and env parsing
+  - Integration tests for repositories, clients, and route-to-service flows
   - End-to-end tests:
     - `<!-- TODO: fill in -->`
 - Run tests locally:
@@ -250,25 +244,24 @@ npm install
 - Allowed to modify:
   - `src/` application code
   - `tests/` test code
-  - `scripts/` operational scripts
+  - `scripts/` project-local setup/operations code
   - `docs/` documentation
-  - `package.json`, TypeScript config, lint config, and other project-local build files once they exist
+  - `package.json`, `tsconfig.json`, ESLint/Prettier/Husky/VS Code project settings
 - Must not touch:
   - `.env`, `.env.local`, `.env.*.local`
-  - secrets, credentials, or deployment-only values
-  - generated production data dumps or live database contents
-  - infrastructure outside this repository unless explicitly requested
+  - real secrets or deployment-only values
+  - live database contents or generated production data
+  - infra outside this repository unless explicitly requested
 - Preferred patterns for new features:
-  - Add new domains by extending the existing layered flow: route, controller, service, repository, model, validator, test
-  - Put provider integrations behind `src/clients`
-  - Put scoring constants in `src/constants/scoreWeight.ts`
-  - Keep recommendation ranking logic centralized in `src/services/scoring.service.ts`
-  - Normalize external datasets before they are consumed by recommendation logic
-  - Use batch scripts in `scripts/` for ingestion and synchronization jobs
-  - Keep TypeScript types close to the domain they describe
+  - Implement the full vertical slice: route, controller, service, repository, validator, test
+  - Put external provider integration behind `src/clients`
+  - Keep scoring logic centralized in `src/services/scoring.service.ts`
+  - Keep shared weights in `src/constants/scoreWeight.ts`
+  - Normalize imported public data before domain use
+  - Use `npm run format` and `npm run lint` after meaningful changes
 - Known pitfalls and fragile areas:
-  - The codebase is currently a skeleton, so file names imply intent but do not yet enforce behavior
-  - The repository currently mixes a JavaScript file layout with a TypeScript target architecture; migration rules must be made explicit before large-scale implementation
-  - Map API, STT API, and some public data sources are still undecided, so avoid vendor lock-in in type definitions and service contracts
-  - Scoring logic is a domain-critical area; changes to weights, score dimensions, or ranking formulas require corresponding tests
-  - Public data ingestion can become schema-fragile if provider payloads change; normalization boundaries must stay isolated and test-covered
+  - Most domain files are still placeholders, so names imply intent more than behavior
+  - Git hooks are configured from a monorepo-like parent Git root, not from `SeoulMate_BE` as a standalone Git repository
+  - The current Husky setup depends on `core.hooksPath` pointing to `SeoulMate_BE/.husky/_`
+  - Provider choices are still undecided, so avoid vendor lock-in in public interfaces
+  - Scoring logic is domain-critical; weight or formula changes require tests and doc updates
