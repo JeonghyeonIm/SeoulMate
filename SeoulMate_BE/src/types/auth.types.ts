@@ -1,0 +1,67 @@
+// src/types/auth.types.ts
+export type AuthProvider = "local" | "kakao" | "google";
+
+export type Vibe =
+  | "조용한"
+  | "힙한"
+  | "낭만적인"
+  | "활기찬"
+  | "고즈넉한"
+  | "현대적인"
+  | "감성적인"
+  | "자연친화적";
+
+export interface SignupPreferences {
+  vibes: Vibe[] | null;
+}
+
+export interface SignupRequestBody {
+  email: string;
+  password?: string;
+  nickname: string;
+  provider: AuthProvider;
+  preferences?: SignupPreferences | null;
+}
+
+export interface SignupResponseBody {
+  id: string;
+  email: string;
+  nickname: string;
+  createdAt: string;
+}
+
+export interface ValidatedSignupPayload {
+  email: string;
+  password?: string;
+  nickname: string;
+  provider: AuthProvider;
+  preferences: SignupPreferences | null;
+}
+
+export interface UserRecord {
+  id: string;
+  email: string;
+  password: string | null;
+  nickname: string;
+  provider: AuthProvider;
+  createdAt: string;
+}
+
+export interface PreferenceRecord {
+  userId: string;
+  vibes: Vibe[];
+}
+
+export interface CreateUserParams {
+  id: string;
+  email: string;
+  password: string | null;
+  nickname: string;
+  provider: AuthProvider;
+  createdAt: string;
+}
+
+export interface CreatePreferenceParams {
+  userId: string;
+  vibes: Vibe[];
+}
