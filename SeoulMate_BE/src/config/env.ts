@@ -11,13 +11,34 @@ const parsePort = (value: string | undefined, fallback: number): number => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const parseBoolean = (value: string | undefined, fallback: boolean): boolean => {
+  if (!value) {
+    return fallback;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (["true", "1", "yes", "y", "on"].includes(normalized)) {
+    return true;
+  }
+
+  if (["false", "0", "no", "n", "off"].includes(normalized)) {
+    return false;
+  }
+
+  return fallback;
+};
+
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
   PORT: parsePort(process.env.PORT, 3000),
   DATABASE_URL: process.env.DATABASE_URL ?? "",
-  POSTGRES_HOST: process.env.POSTGRES_HOST ?? "localhost",
+  DATABASE_SSL: parseBoolean(process.env.DATABASE_SSL, true),
+  POSTGRES_HOST: process.env.POSTGRES_HOST || "localhost",
   POSTGRES_PORT: parsePort(process.env.POSTGRES_PORT, 5432),
-  POSTGRES_DB: process.env.POSTGRES_DB ?? "seoulmate",
-  POSTGRES_USER: process.env.POSTGRES_USER ?? "postgres",
-  POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD ?? ""
+  POSTGRES_DB: process.env.POSTGRES_DB || "seoulmate",
+  POSTGRES_USER: process.env.POSTGRES_USER || "postgres",
+  POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD ?? "",
+  SEOUL_OPEN_API_KEY: process.env.SEOUL_OPEN_API_KEY ?? "",
+  KMA_API_KEY: process.env.KMA_API_KEY ?? ""
 } as const;

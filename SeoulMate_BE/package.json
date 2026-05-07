@@ -8,6 +8,9 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "sync:public-data": "npm run build && node dist/jobs/runPublicDataSync.js",
+    "convert:coordinates": "npm run build && node dist/jobs/runCoordinateConversion.js",
+    "sync:weather": "npm run build && node dist/jobs/runWeatherSync.js",
     "prepare": "node scripts/setupHusky.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -28,6 +31,7 @@
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "pg": "^8.16.3",
+    "proj4": "^2.20.8",
     "uuid": "^11.1.1"
   },
   "devDependencies": {
@@ -37,6 +41,7 @@
     "@types/express": "^5.0.3",
     "@types/node": "^24.10.1",
     "@types/pg": "^8.15.6",
+    "@types/proj4": "^2.5.6",
     "@types/uuid": "^10.0.0",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
