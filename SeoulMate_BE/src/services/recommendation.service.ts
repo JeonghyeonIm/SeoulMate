@@ -66,6 +66,7 @@ export interface CourseResponse {
   totalCost: number;
   duration: number;
   congestion: "low" | "medium" | "high" | "unknown";
+  weather?: RecommendationContextData["weather"];
   places: CoursePlaceResponse[];
 }
 
@@ -272,6 +273,7 @@ const toCourseResponseFromResult = (result: RecommendationResult): CourseRespons
     totalCost: result.course.estimatedBudget,
     duration: courseDuration(result.course.places),
     congestion: crowdToCongestion(result.context?.cityData?.crowdLevel),
+    weather: result.context?.weather,
     places: result.course.places.map((place) => ({
       id: `plc_${place.placeId}`,
       name: place.title,
