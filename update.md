@@ -1,12 +1,23 @@
 ==== 정현아 꼭 읽어봐. 혁준이 형아가 ====
+refresh token 무효화나 토큰 보안 쪽은 지금 당장 신경 안 써도 될 것 같아.
+
+어차피 카카오/구글 OAuth 붙이면 토큰 관련 로직 다시 짜야 하거든. 지금 로컬 로그인 기준으로 먼저 구현하면 나중에 이중 작업 돼.
+
+그래서 순서를 이렇게 가져가면 어떨까 싶어.
+
+지금은 토큰 쪽 신경 끄고 다른 기능 구현 → OAuth 포함 회원가입 로직 완성 → 그때 refresh token 저장/무효화 같이 처리
+
+어떻게 생각해?
 
 ## 수정 1. 중기예보 DB 조회로 변경
 
 **수정 전**
+
 - `getMediumTermForecast()`가 `weather_forecasts` 테이블을 무시하고 KMA API를 직접 호출
 - DB에 데이터가 있어도 항상 `NO_DATA`가 발생할 수 있었음
 
 **수정 후**
+
 - `weather_forecasts` DB를 먼저 조회하고, 데이터가 없을 때만 KMA API fallback 하도록 변경
 - 실제 DB 조회 및 날짜 매칭 성공까지 확인 완료
 
@@ -15,9 +26,11 @@
 ## 수정 2. 추천 API 응답에 날씨 정보 추가
 
 **수정 전**
+
 - LangGraph 내부에서 `context.weather`는 생성되지만 최종 응답 JSON에는 누락됨
 
 **수정 후**
+
 - 추천 응답에 `weather` 필드가 정상 포함되도록 반영
 - `source`, `rainProbability`, `skyStatus`, `temperature`, `weatherAlert`를 함께 전달
 
@@ -36,21 +49,21 @@
 
 ## 1. 초기 대비 구현된 것
 
-| 영역 | 초기 상태 | 지금 상태 |
-| --- | --- | --- |
-| LangGraph 추천 흐름 | 없음/미연결 수준 | `parse → 후보조회 → 지도검증 → 실시간/날씨 → 스코어링 → 코스구성 → 검증 → AI설명 → 결과정리` 그래프 구현 |
-| 코스 추천 요청 | 문자열 `input` 중심 | 명세처럼 JSON 요청 지원: `vibes`, `region`, `budget`, `duration`, `purpose`, `query` |
-| 코스 추천 응답 | 내부 state/result 형태 | 명세처럼 `{ courses: [...] }` 반환 |
-| 코스 상세 조회 | 미흡/내부 DB 형태 | `id`, `title`, `description`, `totalCost`, `duration`, `congestion`, `places[]` 형태 구현 |
-| 장소 검색/상세 | `public_data` 원본 반환 위주 | `/places/search`, `/places/:id` 명세 응답 형태 구현 |
-| 인증 | 부분 구현 | `signup/login/refresh/logout` + JWT access/refresh 동작 |
-| 유저 API | 부분 구현 | `/users/me`, `/users`, `/users/:id`, `/users/me/preferences` 명세형 응답 구현 |
-| 코스 저장 | 부분 구현 | 저장, 저장취소, 저장목록 구현 |
-| ID 형식 | 숫자 ID | 응답은 `crs_45`, `plc_290538` 형태. 요청은 prefix/숫자 둘 다 파싱 |
-| 날씨 분기 | 불명확/한꺼번에 호출 위험 | 실시간 `citydata`, 초단기, 단기, 중기, 11일 이후 `unavailable` 분기 |
-| 지도/거리 | fallback 위주 | Kakao walking route 연결 + fallback. Kakao Local 후보 검증 노드 추가 |
-| 후보 품질 | 지역명 title 매칭으로 이상 후보 섞임 | 서울 지역 alias/구 단위 필터, 좌표 있는 장소 우선, 지도 검증 우선 반영 |
-| 테스트 | 없음 | build/lint 통과, 실제 HTTP 20개 추천 + 상세 조회 전부 PASS |
+| 영역                | 초기 상태                            | 지금 상태                                                                                                |
+| ------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| LangGraph 추천 흐름 | 없음/미연결 수준                     | `parse → 후보조회 → 지도검증 → 실시간/날씨 → 스코어링 → 코스구성 → 검증 → AI설명 → 결과정리` 그래프 구현 |
+| 코스 추천 요청      | 문자열 `input` 중심                  | 명세처럼 JSON 요청 지원: `vibes`, `region`, `budget`, `duration`, `purpose`, `query`                     |
+| 코스 추천 응답      | 내부 state/result 형태               | 명세처럼 `{ courses: [...] }` 반환                                                                       |
+| 코스 상세 조회      | 미흡/내부 DB 형태                    | `id`, `title`, `description`, `totalCost`, `duration`, `congestion`, `places[]` 형태 구현                |
+| 장소 검색/상세      | `public_data` 원본 반환 위주         | `/places/search`, `/places/:id` 명세 응답 형태 구현                                                      |
+| 인증                | 부분 구현                            | `signup/login/refresh/logout` + JWT access/refresh 동작                                                  |
+| 유저 API            | 부분 구현                            | `/users/me`, `/users`, `/users/:id`, `/users/me/preferences` 명세형 응답 구현                            |
+| 코스 저장           | 부분 구현                            | 저장, 저장취소, 저장목록 구현                                                                            |
+| ID 형식             | 숫자 ID                              | 응답은 `crs_45`, `plc_290538` 형태. 요청은 prefix/숫자 둘 다 파싱                                        |
+| 날씨 분기           | 불명확/한꺼번에 호출 위험            | 실시간 `citydata`, 초단기, 단기, 중기, 11일 이후 `unavailable` 분기                                      |
+| 지도/거리           | fallback 위주                        | Kakao walking route 연결 + fallback. Kakao Local 후보 검증 노드 추가                                     |
+| 후보 품질           | 지역명 title 매칭으로 이상 후보 섞임 | 서울 지역 alias/구 단위 필터, 좌표 있는 장소 우선, 지도 검증 우선 반영                                   |
+| 테스트              | 없음                                 | build/lint 통과, 실제 HTTP 20개 추천 + 상세 조회 전부 PASS                                               |
 
 ## 2. 명세 기준 구현 완료된 API
 
@@ -72,19 +85,19 @@
 
 ## 3. 아직 구현 안 됐거나 제한 있는 것
 
-| 항목 | 상태 | 이유 |
-| --- | --- | --- |
-| 관리자 권한 403 | 미구현 | DB에 `role`, `is_admin` 같은 컬럼 없음 |
-| refreshToken 실제 무효화 | 미구현 | refresh token 저장/블랙리스트 테이블 없음. 현재는 검증 후 204 |
-| 예산 선호 저장 | 미구현 | `users` 테이블에 budget 컬럼 없음 |
-| 미래 혼잡도 분석 | 미구현 | 상권분석서비스 데이터셋이 현재 DB에 없음 |
-| Kakao 별점/후기 수 기반 정렬 | 불가/미구현 | Kakao Local 공식 응답에 별점/리뷰 수 없음 |
-| Kakao Local 후보 검증 | 코드 구현, 실제 호출 실패 | 현재 REST Local API 호출이 403. 키 권한 확인 필요 |
-| STT 음성 입력 | 미구현 | 현재는 텍스트/query 기준 |
-| 코스 여러 개 추천 | 현재 1개 | 명세는 `courses[]`지만 지금은 추천 코스 1개 반환 |
-| 추천 결과 완전 보존 | 부분 구현 | 상세 조회 시 title/duration 일부 재계산됨 |
-| 운영시간 정확도 | 부분 구현 | metadata 기반 추정, 없으면 “방문 전 확인 필요” |
-| 가격 정확도 | 부분 구현 | 공공데이터 fee가 있으면 사용, 없으면 카테고리 추정 |
+| 항목                         | 상태                      | 이유                                                          |
+| ---------------------------- | ------------------------- | ------------------------------------------------------------- |
+| 관리자 권한 403              | 미구현                    | DB에 `role`, `is_admin` 같은 컬럼 없음                        |
+| refreshToken 실제 무효화     | 미구현                    | refresh token 저장/블랙리스트 테이블 없음. 현재는 검증 후 204 |
+| 예산 선호 저장               | 미구현                    | `users` 테이블에 budget 컬럼 없음                             |
+| 미래 혼잡도 분석             | 미구현                    | 상권분석서비스 데이터셋이 현재 DB에 없음                      |
+| Kakao 별점/후기 수 기반 정렬 | 불가/미구현               | Kakao Local 공식 응답에 별점/리뷰 수 없음                     |
+| Kakao Local 후보 검증        | 코드 구현, 실제 호출 실패 | 현재 REST Local API 호출이 403. 키 권한 확인 필요             |
+| STT 음성 입력                | 미구현                    | 현재는 텍스트/query 기준                                      |
+| 코스 여러 개 추천            | 현재 1개                  | 명세는 `courses[]`지만 지금은 추천 코스 1개 반환              |
+| 추천 결과 완전 보존          | 부분 구현                 | 상세 조회 시 title/duration 일부 재계산됨                     |
+| 운영시간 정확도              | 부분 구현                 | metadata 기반 추정, 없으면 “방문 전 확인 필요”                |
+| 가격 정확도                  | 부분 구현                 | 공공데이터 fee가 있으면 사용, 없으면 카테고리 추정            |
 
 ## 4. 추가 보완하면 좋은 것
 
