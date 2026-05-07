@@ -2,6 +2,7 @@ import { kmaClient, type MidLandItem, type MidTaItem } from "../clients/kma.clie
 import type { UpsertWeatherForecastInput, WeatherForecast } from "../models/weatherForecast.model";
 import { weatherForecastRepository } from "../repositories/weatherForecast.repository";
 import { latLngToGrid } from "../utils/kmaGrid";
+import logger from "../utils/logger";
 
 // 서울 중기예보 구역코드
 const SEOUL_TA_REGION = "11B10101"; // 중기기온 (서울)
@@ -125,7 +126,7 @@ export const syncMediumTermForecast = async (): Promise<void> => {
   const today = toKstDate(new Date()).toISOString().slice(0, 10);
   await weatherForecastRepository.deleteOlderThan(today);
 
-  console.log(JSON.stringify({ event: "weather_sync_completed", tmFc, count: items.length }));
+  logger.info({ event: "weather_sync_completed", tmFc, count: items.length });
 };
 
 export const getMediumTermForecast = async (
@@ -140,8 +141,9 @@ export const getMediumTermForecast = async (
   );
 
   if (storedForecasts.length) {
-    console.log(
-      `[weather] medium-term forecast fetched from DB (date: ${fromDate}, count: ${storedForecasts.length})`
+    logger.info(
+      { date: fromDate, count: storedForecasts.length },
+      "Medium-term forecast fetched from DB"
     );
     const matchedForecast = targetDate
       ? storedForecasts.find((item) => item.forecastDate === fromDate)
@@ -152,7 +154,7 @@ export const getMediumTermForecast = async (
     }
   }
 
-  console.log(`[weather] no DB data found, falling back to KMA API (date: ${fromDate})`);
+  logger.info({ date: fromDate }, "No DB weather data found, falling back to KMA API");
   const tmFc = buildTmFc(new Date());
 
   const [taItems, landItems] = await Promise.all([
@@ -161,7 +163,7 @@ export const getMediumTermForecast = async (
   ]);
 
   if (!taItems.length || !landItems.length) {
-    console.log(`[weather] KMA API returned no data (tmFc: ${tmFc})`);
+    logger.warn({ tmFc }, "KMA API returned no weather data");
     return null;
   }
 
@@ -268,7 +270,7 @@ export const scheduleMediumTermForecastSync = (): void => {
       try {
         await syncMediumTermForecast();
       } catch (err) {
-        console.error("Weather sync failed", err);
+        logger.error({ err }, "Weather sync failed");
       } finally {
         scheduleNext();
       }

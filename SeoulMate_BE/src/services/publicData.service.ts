@@ -9,6 +9,7 @@ import {
 import type { UpsertPublicDatasetInput } from "../models/publicDataset.model";
 import { publicDataRepository } from "../repositories/publicData.repository";
 import { epsg5174ToWgs84 } from "../utils/coordinates";
+import logger from "../utils/logger";
 
 interface SyncDatasetResult {
   dataset: string;
@@ -691,7 +692,7 @@ export const scheduleDailyPublicDataSync = (): void => {
       try {
         await syncDailyPublicData();
       } catch (error) {
-        console.error("Daily public data sync failed", error);
+        logger.error({ err: error }, "Daily public data sync failed");
       } finally {
         scheduleNext();
       }

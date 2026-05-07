@@ -43,6 +43,7 @@ export interface RecommendCoursePayload {
   region?: string;
   budget?: number;
   duration?: string;
+  dateTime?: string;
   purpose?: string;
 }
 
@@ -146,6 +147,7 @@ const buildStructuredRecommendationInput = (
   const budget = Number(payload.budget);
   const durationHours = durationToHours(payload.duration);
   const vibes = normalizeStringArray(payload.vibes, "vibes", true);
+  const dateTime = typeof payload.dateTime === "string" ? payload.dateTime.trim() : "";
   const purpose = typeof payload.purpose === "string" ? payload.purpose.trim() : undefined;
   const query = typeof payload.query === "string" ? payload.query.trim() : legacyInput;
 
@@ -179,11 +181,15 @@ const buildStructuredRecommendationInput = (
     mood: vibes
   };
 
+  if (dateTime) {
+    parsedRequest.dateTime = dateTime;
+  }
+
   if (purpose) {
     parsedRequest.purpose = purpose;
   }
 
-  if (!hasDateTimeHint(query)) {
+  if (!dateTime && !hasDateTimeHint(query)) {
     parsedRequest.dateTime = new Date().toISOString();
   }
 
@@ -201,7 +207,10 @@ const getCandidate = (
   placeId: number
 ): CandidatePlace | undefined => candidates?.find((candidate) => candidate.id === placeId);
 
-const assertOwnRequest = (request: RecommendationRequest | null, userId: number): RecommendationRequest => {
+const assertOwnRequest = (
+  request: RecommendationRequest | null,
+  userId: number
+): RecommendationRequest => {
   if (!request || request.userId !== userId) {
     throw new ApiError(404, "Course not found");
   }
@@ -228,9 +237,7 @@ const buildCourseDetail = async (
   };
 };
 
-const crowdToCongestion = (
-  crowdLevel?: string
-): CourseResponse["congestion"] => {
+const crowdToCongestion = (crowdLevel?: string): CourseResponse["congestion"] => {
   if (!crowdLevel) {
     return "unknown";
   }
@@ -251,10 +258,7 @@ const crowdToCongestion = (
 };
 
 const courseDuration = (places: RecommendationCoursePlace[]): number =>
-  places.reduce(
-    (sum, place) => sum + place.estimatedTimeMinute + (place.moveTimeMinute ?? 0),
-    0
-  );
+  places.reduce((sum, place) => sum + place.estimatedTimeMinute + (place.moveTimeMinute ?? 0), 0);
 
 const toCourseResponseFromResult = (result: RecommendationResult): CourseResponse | null => {
   if (!result.course) {
@@ -357,7 +361,9 @@ export const recommendationService = {
             reason: state.aiExplanation?.summary ?? state.aiExplanation?.reason ?? null,
             travelMinutes: place.moveTimeMinute ?? null,
             estimatedCost:
-              place.estimatedCost ?? getCandidate(state.candidatePlaces, place.placeId)?.estimatedCost ?? null
+              place.estimatedCost ??
+              getCandidate(state.candidatePlaces, place.placeId)?.estimatedCost ??
+              null
           }))
         );
         await recommendationRepository.updateRequestStatus(request.id, "completed");
@@ -396,7 +402,10 @@ export const recommendationService = {
   },
 
   async getCourse(courseId: number, userId: number): Promise<CourseDetail> {
-    const request = assertOwnRequest(await recommendationRepository.getRequestById(courseId), userId);
+    const request = assertOwnRequest(
+      await recommendationRepository.getRequestById(courseId),
+      userId
+    );
     return buildCourseDetail(request);
   },
 
@@ -432,7 +441,10 @@ export const recommendationService = {
   },
 
   async saveCourse(userId: number, courseId: number, notes?: string | null): Promise<CourseDetail> {
-    const request = assertOwnRequest(await recommendationRepository.getRequestById(courseId), userId);
+    const request = assertOwnRequest(
+      await recommendationRepository.getRequestById(courseId),
+      userId
+    );
     const existing = await recommendationRepository.getSavedCourse(userId, request.id);
     if (existing) {
       throw new ApiError(409, "Course already saved");
