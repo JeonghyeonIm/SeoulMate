@@ -140,6 +140,9 @@ export const getMediumTermForecast = async (
   );
 
   if (storedForecasts.length) {
+    console.log(
+      `[weather] medium-term forecast fetched from DB (date: ${fromDate}, count: ${storedForecasts.length})`
+    );
     const matchedForecast = targetDate
       ? storedForecasts.find((item) => item.forecastDate === fromDate)
       : storedForecasts[0];
@@ -149,6 +152,7 @@ export const getMediumTermForecast = async (
     }
   }
 
+  console.log(`[weather] no DB data found, falling back to KMA API (date: ${fromDate})`);
   const tmFc = buildTmFc(new Date());
 
   const [taItems, landItems] = await Promise.all([
@@ -157,6 +161,7 @@ export const getMediumTermForecast = async (
   ]);
 
   if (!taItems.length || !landItems.length) {
+    console.log(`[weather] KMA API returned no data (tmFc: ${tmFc})`);
     return null;
   }
 
