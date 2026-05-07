@@ -1,151 +1,417 @@
 # SeoulMate_BE API
 
-## 개요
+## Overview
 
-이 문서는 `SeoulMate_BE`의 예정 API 명세를 정리합니다.
-현재 구현은 최소 부트스트랩 수준이며, 인증과 데이터 저장은 일반 PostgreSQL 기반 서버 구조를 전제로 합니다.
+This document describes the API surface for `SeoulMate_BE`.
+Bootstrap endpoints and the sign-up endpoint are implemented; the remaining domain endpoints below are still design-level targets.
 
-## 현재 구현 상태
+## Current Implementation Status
 
-- 현재 구현됨:
+- Currently implemented:
   - `GET /health`
   - `GET /api`
-- 예정:
-  - 자체 인증 API
-  - 사용자 정보 API
-  - 장소 검색 API
-  - 추천 요청/조회 API
-  - 저장 코스 API
+  - `POST /api/auth/signup`
+- Planned but not implemented yet:
+  - login, refresh, logout APIs
+  - user APIs
+  - course recommendation APIs
+  - place APIs
 
 ## Base URL
 
 ```text
-<!-- TODO: fill in -->
+http://localhost:<PORT>/api
 ```
 
-## 인증 모델
+## Authentication Model
 
-- 인증 방식:
-  - 서버 자체 인증
-  - JWT Bearer Token 예정
-- 사용자 저장 테이블:
-  - `users`
+- Authentication scheme:
+  - JWT Bearer Token
+- Standard header format:
 
-## 엔드포인트 요약
+```http
+Authorization: Bearer <JWT>
+```
 
-| 분류      | 기능                | 주체   | 메서드   | URL                         | 상태        |
-| --------- | ------------------- | ------ | -------- | --------------------------- | ----------- |
-| Bootstrap | 헬스 체크           | Public | `GET`    | `/health`                   | Implemented |
-| Bootstrap | API 루트 확인       | Public | `GET`    | `/api`                      | Implemented |
-| Auth      | 회원가입            | Public | `POST`   | `/auth/signup`              | Planned     |
-| Auth      | 로그인              | Public | `POST`   | `/auth/login`               | Planned     |
-| Auth      | 로그아웃            | User   | `POST`   | `/auth/logout`              | Planned     |
-| User      | 내 정보 조회        | User   | `GET`    | `/users/me`                 | Planned     |
-| User      | 선호 정보 수정      | User   | `PATCH`  | `/users/me/preferences`     | Planned     |
-| Place     | 장소 검색           | User   | `GET`    | `/places/search`            | Planned     |
-| Place     | 장소 상세 조회      | User   | `GET`    | `/places/{place_id}`        | Planned     |
-| Course    | 추천 요청 생성      | User   | `POST`   | `/courses/recommend`        | Planned     |
-| Course    | 추천 코스 상세 조회 | User   | `GET`    | `/courses/{course_id}`      | Planned     |
-| Course    | 추천 코스 저장      | User   | `POST`   | `/courses/{course_id}/save` | Planned     |
-| Course    | 추천 코스 저장 해제 | User   | `DELETE` | `/courses/{course_id}/save` | Planned     |
-| Course    | 저장한 코스 목록    | User   | `GET`    | `/courses/saved`            | Planned     |
+- Notes:
+  - User auth endpoints are planned.
+  - Admin authorization policy is not defined in the repository yet.
+  - Refresh token transport and storage policy still need to be fixed.
 
-## Auth API
+## Endpoint Summary
 
-### `POST /auth/signup`
+| Category  | Feature                | Actor  | Method   | URL                         | Status      |
+| --------- | ---------------------- | ------ | -------- | --------------------------- | ----------- |
+| Bootstrap | Health check           | Public | `GET`    | `/health`                   | Implemented |
+| Bootstrap | API root               | Public | `GET`    | `/api`                      | Implemented |
+| Auth      | Login                  | User   | `POST`   | `/auth/login`               | Planned     |
+| Auth      | Refresh token          | User   | `POST`   | `/auth/refresh`             | Planned     |
+| Auth      | Sign up                | User   | `POST`   | `/auth/signup`              | Implemented |
+| Auth      | Logout                 | User   | `POST`   | `/auth/logout`              | Planned     |
+| User      | Get current user       | User   | `GET`    | `/users/me`                 | Planned     |
+| User      | Update preferences     | User   | `PATCH`  | `/users/me/preferences`     | Planned     |
+| User      | List users             | Admin  | `GET`    | `/users`                    | Planned     |
+| User      | Get user by ID         | Admin  | `GET`    | `/users/{user_id}`          | Planned     |
+| Course    | Request recommendation | User   | `POST`   | `/courses/recommend`        | Planned     |
+| Course    | Get course detail      | User   | `GET`    | `/courses/{course_id}`      | Planned     |
+| Course    | Save course            | User   | `POST`   | `/courses/{course_id}/save` | Planned     |
+| Course    | Unsave course          | User   | `DELETE` | `/courses/{course_id}/save` | Planned     |
+| Course    | List saved courses     | User   | `GET`    | `/courses/saved`            | Planned     |
+| Place     | Get place detail       | User   | `GET`    | `/places/{place_id}`        | Planned     |
+| Search    | Search places          | User   | `GET`    | `/places/search`            | Planned     |
 
-- 목적: 사용자 계정 생성
-- 저장 대상: `users`
-- Request Body 예시:
+## Bootstrap APIs
+
+### `GET /health`
+
+- Purpose: runtime health check
+- Actor: public
+- Auth: not required
+- Query Params: none
+- Response:
 
 ```json
 {
-  "email": "user@example.com",
-  "password": "plain-password",
-  "nickname": "seoulmate_user"
+  "message": "SeoulMate_BE is running"
 }
 ```
 
+### `GET /api`
+
+- Purpose: API root check
+- Actor: public
+- Auth: not required
+- Query Params: none
+- Response:
+
+```json
+{
+  "message": "SeoulMate API root"
+}
+```
+
+## Auth APIs
+
 ### `POST /auth/login`
 
-- 목적: 이메일/비밀번호 로그인
-- 인증 저장 방식:
-  - 추후 JWT 발급 예정
+- Purpose: email or social login
+- Actor: user
+- Auth: not required
+- Query Params: none
+- Request Body:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Notes:
+  - Final login modes and provider list are not defined in the repository yet.
+
+### `POST /auth/refresh`
+
+- Purpose: reissue access token
+- Actor: user
+- Auth: refresh-token based
+- Query Params: none
+- Request Body:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+### `POST /auth/signup`
+
+- Purpose: register a new user
+- Actor: user
+- Auth: not required
+- Query Params: none
+- Request Body:
+
+```json
+{
+  "email": "local1@example.com",
+  "password": "password123",
+  "nickname": "서울러버",
+  "provider": "local",
+  "preferences": {
+    "vibes": ["조용한", "감성적인"]
+  }
+}
+```
+
+- Response:
+
+```json
+{
+  "id": "2dd33eb8-8599-4881-aec2-6433f193a07c",
+  "email": "local1@example.com",
+  "nickname": "서울러버",
+  "createdAt": "2026-05-06T10:00:00.000Z"
+}
+```
+
+- Validation rules:
+  - `email`: required, valid email format
+  - `nickname`: required, 2 to 10 characters
+  - `provider`: required, one of `local`, `kakao`, `google`
+  - `password`: required only when `provider` is `local`, minimum 8 characters
+  - `preferences.vibes`: nullable array; allowed values are `조용한`, `힙한`, `낭만적인`, `활기찬`, `고즈넉한`, `현대적인`, `감성적인`, `자연친화적`
+- Provider behavior:
+  - `local`: password is hashed with `bcrypt` using `saltRounds=10`
+  - `kakao`, `google`: incoming password is ignored
+- Status codes:
+  - `201`: sign-up success
+  - `400`: validation error
+  - `409`: duplicate email or nickname
+  - `500`: internal server error
+- Example error responses:
+
+```json
+{
+  "message": "이미 사용 중인 이메일입니다."
+}
+```
+
+```json
+{
+  "message": "local 회원가입은 8자 이상의 password가 필요합니다."
+}
+```
 
 ### `POST /auth/logout`
 
-- 목적: 현재 세션 또는 토큰 무효화
+- Purpose: invalidate the current session or token
+- Actor: user
+- Auth: `<!-- TODO: fill in -->`
+- Query Params: none
+- Request Body:
 
-## User API
+```json
+<!-- TODO: fill in -->
+```
+
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+## User APIs
 
 ### `GET /users/me`
 
-- 목적: 현재 로그인 사용자 조회
-- 조회 대상: `users`
+- Purpose: get the currently authenticated user
+- Actor: user
+- Auth: required
+- Query Params: none
+- Path Params: none
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ### `PATCH /users/me/preferences`
 
-- 목적: `preferred_region`, `preferred_category` 수정
-- 저장 대상: `users`
+- Purpose: update mood, region, and budget preferences
+- Actor: user
+- Auth: required
+- Query Params: none
+- Path Params: none
+- Request Body:
 
-## Place API
+```json
+<!-- TODO: fill in -->
+```
 
-### `GET /places/search`
+- Response:
 
-- 목적: `public_data` 기준 장소 검색
+```json
+<!-- TODO: fill in -->
+```
+
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
+
+### `GET /users`
+
+- Purpose: list all users
+- Actor: admin
+- Auth: `<!-- TODO: fill in -->`
 - Query Params:
-  - `q`
-  - `region`
-  - `category`
   - `page`
   - `page_size`
+- Response:
 
-### `GET /places/{place_id}`
+```json
+<!-- TODO: fill in -->
+```
 
-- 목적: `public_data` 단건 상세 조회
+### `GET /users/{user_id}`
 
-## Course API
+- Purpose: get one user by ID
+- Actor: admin
+- Auth: `<!-- TODO: fill in -->`
+- Path Params:
+  - `user_id`
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+## Course APIs
 
 ### `POST /courses/recommend`
 
-- 목적: 추천 요청 생성 및 결과 저장
-- DB 연결 대상:
-  - `recommendation_requests`
-  - `recommendations`
+- Purpose: generate AI-assisted course recommendations
+- Actor: user
+- Auth: required
+- Query Params: none
+- Request Body:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
+  - Recommendation ranking must account for congestion, travel burden, safety, and cost
 
 ### `GET /courses/{course_id}`
 
-- 목적: 추천 요청과 하위 장소 목록 조회
-- DB 연결 대상:
-  - `recommendation_requests`
-  - `recommendations`
-  - `public_data`
+- Purpose: get course detail
+- Actor: user
+- Auth: required
+- Path Params:
+  - `course_id`
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ### `POST /courses/{course_id}/save`
 
-- 목적: 추천 코스를 저장 목록에 추가
-- DB 연결 대상:
-  - `saved_courses`
+- Purpose: save a course to user history
+- Actor: user
+- Auth: required
+- Path Params:
+  - `course_id`
+- Request Body:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ### `DELETE /courses/{course_id}/save`
 
-- 목적: 저장 코스 해제
-- DB 연결 대상:
-  - `saved_courses`
+- Purpose: remove a saved course
+- Actor: user
+- Auth: required
+- Path Params:
+  - `course_id`
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
 
 ### `GET /courses/saved`
 
-- 목적: 저장한 추천 코스 목록 조회
-- DB 연결 대상:
-  - `saved_courses`
-  - `recommendation_requests`
+- Purpose: list saved courses
+- Actor: user
+- Auth: required
+- Query Params:
+  - `page`
+  - `page_size`
+- Response:
 
-## 리소스 매핑
+```json
+<!-- TODO: fill in -->
+```
 
-| API 리소스   | 주 테이블                 |
-| ------------ | ------------------------- |
-| User         | `users`                   |
-| Place        | `public_data`             |
-| Course       | `recommendation_requests` |
-| Course items | `recommendations`         |
-| Saved course | `saved_courses`           |
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
+
+## Place APIs
+
+### `GET /places/{place_id}`
+
+- Purpose: get place detail
+- Actor: user
+- Auth: required
+- Path Params:
+  - `place_id`
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
+
+### `GET /places/search`
+
+- Purpose: search places by keyword and region
+- Actor: user
+- Auth: required
+- Query Params:
+  - `q`
+  - `region`
+  - `category` (optional)
+  - `page` (optional)
+  - `page_size` (optional)
+- Response:
+
+```json
+<!-- TODO: fill in -->
+```
+
+- Notes:
+  - Requires `Authorization: Bearer <JWT>`
+
+## Open Items
+
+- Signup request/response DTOs are implemented in `src/types/auth.types.ts`.
+- Signup error policy is implemented through `src/utils/ApiError.ts` and `src/middlewares/errorHandler.ts`.
+- Pagination response shape is not defined in the codebase yet.
+- Admin authorization strategy is not defined in the codebase yet.
+- STT, map, and some data provider integration details are still undecided.

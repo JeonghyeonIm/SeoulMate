@@ -1,5 +1,7 @@
 import { Router } from "express";
 
+import authRouter from "./auth.routes";
+
 const router = Router();
 
 router.get("/", (_req, res) => {
@@ -7,5 +9,7 @@ router.get("/", (_req, res) => {
     message: "SeoulMate API root"
   });
 });
+
+router.use("/auth", authRouter);
 
 export default router;

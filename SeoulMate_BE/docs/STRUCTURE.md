@@ -1,32 +1,28 @@
 # SeoulMate_BE Structure
 
-## 개요
+## Overview
 
-`SeoulMate_BE`는 TypeScript 기반 Express 백엔드입니다.
-현재 구조는 `EC2`에서 백엔드 서버를 실행하고 `RDS PostgreSQL`에 연결하는 형태를 기준으로 정리되어 있습니다.
+`SeoulMate_BE` is a layered Express backend written in TypeScript.
+The project has runtime bootstrap, a working sign-up vertical slice, PostgreSQL scaffolding for future persistence, formatting/linting rules, and pre-commit automation. Most non-auth domain modules are still placeholders.
 
-## 최상위 구조
+## Top-Level Layout
 
 ```text
 SeoulMate_BE/
 |-- .env.example
 |-- .gitignore
 |-- .husky/
-|-- db/
-|   |-- migrations/
-|   |   `-- 20260506_initial_schema.sql
-|   `-- seed.sql
+|   |-- pre-commit
+|   `-- _/
+|-- .prettierignore
+|-- .prettierrc.json
+|-- .vscode/
+|   `-- settings.json
+|-- AGENTS.md
 |-- docs/
 |   |-- API.md
-|   |-- AWS_SECURITY_GROUPS.md
-|   |-- DB.md
-|   |-- DEPLOYMENT.md
-|   |-- DOMAIN_SETUP.md
-|   |-- DOMAIN_AND_SERVER_BINDING.md
-|   |-- INFRA_TRANSITION_EKS.md
-|   |-- PUBLIC_DATA_APIS.md
-|   |-- VPC_SETUP.md
 |   `-- STRUCTURE.md
+|-- eslint.config.mjs
 |-- package.json
 |-- scripts/
 |   |-- seed.ts
@@ -36,121 +32,223 @@ SeoulMate_BE/
 |   |-- app.ts
 |   |-- server.ts
 |   |-- clients/
+|   |   |-- map.client.ts
+|   |   |-- openai.client.ts
+|   |   `-- seoulOpenData.client.ts
 |   |-- config/
 |   |   |-- db.ts
 |   |   |-- env.ts
 |   |   `-- openai.ts
 |   |-- constants/
+|   |   |-- datasetType.ts
+|   |   `-- scoreWeight.ts
 |   |-- controllers/
+|   |   |-- auth.controller.ts
+|   |   |-- ai.controller.ts
+|   |   |-- publicData.controller.ts
+|   |   |-- recommendation.controller.ts
+|   |   `-- user.controller.ts
 |   |-- middlewares/
+|   |   |-- asyncHandler.ts
+|   |   |-- auth.ts
+|   |   |-- errorHandler.ts
+|   |   `-- validateRequest.ts
 |   |-- models/
 |   |   |-- publicDataset.model.ts
 |   |   |-- recommendation.model.ts
 |   |   |-- score.model.ts
 |   |   `-- user.model.ts
 |   |-- repositories/
+|   |   |-- inMemoryDatabase.ts
+|   |   |-- preference.repository.ts
 |   |   |-- publicData.repository.ts
 |   |   |-- recommendation.repository.ts
 |   |   `-- user.repository.ts
 |   |-- routes/
+|   |   |-- ai.routes.ts
+|   |   |-- auth.routes.ts
+|   |   |-- index.ts
+|   |   |-- publicData.routes.ts
+|   |   |-- recommendation.routes.ts
+|   |   `-- user.routes.ts
 |   |-- services/
+|   |   |-- auth.service.ts
+|   |   |-- ai.service.ts
+|   |   |-- publicData.service.ts
+|   |   |-- recommendation.service.ts
+|   |   |-- scoring.service.ts
+|   |   `-- user.service.ts
+|   |-- types/
+|   |   `-- auth.types.ts
 |   |-- utils/
+|   |   |-- ApiError.ts
+|   |   |-- date.ts
+|   |   |-- normalize.ts
+|   |   `-- response.ts
 |   `-- validators/
+|       |-- recommendation.validator.ts
+|       `-- user.validator.ts
 |-- tests/
+|   |-- publicData.test.ts
+|   `-- recommendation.test.ts
 `-- tsconfig.json
 ```
 
-## 주요 설정 파일
-
-### `.env.example`
-
-- EC2/RDS 연결에 필요한 환경 변수 템플릿입니다.
-- 핵심 변수:
-  - `DATABASE_URL`
-  - `DATABASE_SSL`
-  - `POSTGRES_HOST`
-  - `POSTGRES_PORT`
-  - `POSTGRES_DB`
-  - `POSTGRES_USER`
-  - `POSTGRES_PASSWORD`
+## Runtime and Tooling Files
 
 ### `package.json`
 
-- Express 서버 실행, 빌드, 포맷, 린트 스크립트를 정의합니다.
-- DB 라이브러리는 `pg`를 사용합니다.
+- Defines project scripts:
+  - `npm run dev`
+  - `npm run build`
+  - `npm start`
+  - `npm run lint`
+  - `npm run lint:fix`
+  - `npm run format`
+  - `npm run format:check`
+  - `npm run prepare`
+- Holds `lint-staged` rules for staged file formatting and lint fixing.
 
-## `db/`
+### `tsconfig.json`
 
-### `migrations/20260506_initial_schema.sql`
+- Compiles `src/**/*.ts` into `dist/`.
+- Current output directory is `dist/`.
+- Strict TypeScript mode is enabled.
 
-- 초기 PostgreSQL 스키마 정의 파일입니다.
-- `users`, `public_data`, `recommendation_requests`, `recommendations`, `saved_courses` 등을 생성합니다.
+### `.env.example`
 
-### `seed.sql`
+- Template for local runtime variables.
+- Real `.env` values must stay out of version control.
 
-- 개발용 샘플 장소 데이터를 적재합니다.
+### `eslint.config.mjs`, `.prettierrc.json`, `.prettierignore`
 
-## `src/config/`
+- `eslint.config.mjs`: ESLint flat config for TypeScript and import ordering
+- `.prettierrc.json`: project formatting rules
+- `.prettierignore`: files excluded from Prettier
 
-### `db.ts`
+### `.husky/`, `scripts/setupHusky.mjs`
 
-- `pg.Pool`을 생성합니다.
-- `DATABASE_URL`이 있으면 그 값을 우선 사용하고, 없으면 개별 `POSTGRES_*` 환경 변수 조합으로 연결합니다.
-- RDS SSL 연결은 `DATABASE_SSL`로 제어합니다.
+- `.husky/pre-commit`: entry hook that triggers `lint-staged`
+- `.husky/_/`: wrapper scripts used by Git hooks
+- `scripts/setupHusky.mjs`: sets up the hook path for the parent Git repository layout
 
-### `env.ts`
+## Application Layers
 
-- 환경 변수를 로드하고 기본값을 정리합니다.
+### `src/app.ts`, `src/server.ts`
 
-## `src/models/`
+- `app.ts` composes the Express app.
+  - enables `cors`
+  - enables JSON and URL-encoded body parsing
+  - exposes `GET /health`
+  - mounts the API router under `/api`
+  - attaches the global `errorHandler` middleware
+- `server.ts` starts the HTTP server using the configured port.
 
-### `user.model.ts`
+### `src/routes/`
 
-- `users` 테이블 기준 사용자 타입을 정의합니다.
+- Entry point for HTTP path declarations.
+- `index.ts` provides the `/api` root endpoint and mounts `/auth`.
+- `auth.routes.ts` exposes `POST /auth/signup`.
+- Additional route files are reserved for domain-specific endpoints.
 
-### `publicDataset.model.ts`
+### `src/controllers/`
 
-- `public_data` 테이블과 검색/업서트 입력 타입을 정의합니다.
+- HTTP controller layer.
+- `auth.controller.ts` validates sign-up input, calls the auth service, and returns the `201` response.
+- Other controllers remain placeholders.
 
-### `recommendation.model.ts`
+### `src/services/`
 
-- `recommendation_requests`, `recommendations`, `saved_courses` 타입을 정의합니다.
+- Business logic layer.
+- `auth.service.ts` handles duplicate checks, provider branching, password hashing, user creation, and optional preference creation.
+- `scoring.service.ts` is the intended center for recommendation weighting and ranking logic.
 
-### `score.model.ts`
+### `src/repositories/`
 
-- 추천 점수 계산 결과 구조를 정의합니다.
+- Persistence boundary.
+- `user.repository.ts` and `preference.repository.ts` currently expose ORM-like methods backed by `inMemoryDatabase.ts`.
+- PostgreSQL-backed repositories remain scaffolded for future replacement.
 
-## `src/repositories/`
+### `src/models/`
 
-### `user.repository.ts`
+- Persistence-facing entities or schema definitions.
+- Current model names imply `User`, `Recommendation`, `Score`, and `PublicDataset` as primary data concepts.
 
-- `users` 조회, 생성, 선호 정보 수정 로직을 담당합니다.
+### `src/clients/`
 
-### `publicData.repository.ts`
+- External integration boundary.
+- Intended for map APIs, OpenAI/LLM calls, and Seoul public/open data APIs.
 
-- `public_data` 조회, 검색, 업서트 로직을 담당합니다.
+### `src/config/`
 
-### `recommendation.repository.ts`
+- Centralized runtime configuration.
+- `env.ts`: loads and normalizes environment variables
+- `db.ts`: creates a `pg.Pool`
+- `openai.ts`: placeholder for OpenAI-specific setup
 
-- 추천 요청 생성
-- 추천 결과 저장
-- 저장 코스 등록/해제/조회
+### `src/middlewares/`
 
-위 흐름의 DB 접근 로직을 담당합니다.
+- Shared Express pipeline logic.
+- `errorHandler.ts` now converts `ApiError` instances into HTTP responses.
+- Other middleware files remain placeholders.
 
-## 현재 계층 흐름
+### `src/validators/`
 
-`routes -> controllers -> services -> repositories -> PostgreSQL`
+- `user.validator.ts` validates sign-up payloads and allowed provider/vibe values.
+- `recommendation.validator.ts` remains a placeholder.
 
-## 문서
+### `src/types/`
 
-- `API.md`: 예정 API 명세 초안
-- `AWS_SECURITY_GROUPS.md`: EC2/RDS 보안 그룹 생성 및 연결 절차
-- `DB.md`: PostgreSQL 기반 DB 설계 문서
-- `DEPLOYMENT.md`: EC2, EIP, RDS, Nginx, PM2 기준 실제 배포 절차
-- `DOMAIN_SETUP.md`: 가비아 도메인과 AWS 서버 연결 절차
-- `DOMAIN_AND_SERVER_BINDING.md`: EIP, DNS, 프런트, 백엔드, Nginx 값 연결 정리
-- `INFRA_TRANSITION_EKS.md`: EC2 기반 운영에서 EKS, ALB, 오토스케일링, CI/CD, 무중단 배포로 전환하는 상세 가이드
-- `PUBLIC_DATA_APIS.md`: 서울 공공데이터 API 후보 및 수집 전략
-- `VPC_SETUP.md`: VPC, subnet, route table, RDS subnet group 구성 절차
-- `STRUCTURE.md`: 현재 백엔드 구조 설명
+- Shared request, response, and persistence interfaces.
+- `auth.types.ts` defines sign-up DTOs and temporary persistence record shapes.
+
+### `src/constants/`
+
+- Shared domain constants.
+- Expected to hold scoring weights and dataset classifications.
+
+### `src/utils/`
+
+- Cross-cutting helpers that should stay domain-neutral.
+
+## Supporting Directories
+
+### `docs/`
+
+- Human-facing backend reference material.
+- `API.md`: API draft and endpoint plan
+- `STRUCTURE.md`: repository structure and runtime layout
+
+### `scripts/`
+
+- Project-local setup or operational jobs.
+- `seed.ts` and `syncPublicData.ts` are placeholders.
+
+### `tests/`
+
+- Placeholder test directory.
+- Test targets are present, but no runner is wired yet.
+
+## Current State Notes
+
+- TypeScript build and Express bootstrap are working.
+- The sign-up flow is implemented as `POST /api/auth/signup`.
+- Formatting and linting are configured and runnable.
+- Pre-commit formatting/lint automation is configured through Husky and lint-staged.
+- PostgreSQL connection scaffolding exists, but no domain repository logic is implemented yet.
+- Auth persistence is temporary in-memory storage, so data is lost on restart.
+- Most files outside the auth/runtime/config/bootstrap path are still placeholders.
+
+## Current Live Endpoints
+
+- `GET /health`
+- `GET /api`
+- `POST /api/auth/signup`
+
+## Recommended Conventions Going Forward
+
+1. Keep the request flow as `routes -> controllers -> services -> repositories/models`.
+2. Keep external API calls inside `clients/`.
+3. Add new features as full vertical slices, not one isolated file at a time.
+4. Keep scoring logic centralized in `services/scoring.service.ts`.
+5. Run `npm run format` and `npm run lint` after meaningful changes.
