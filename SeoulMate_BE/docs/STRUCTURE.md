@@ -23,6 +23,7 @@ SeoulMate_BE/
 |   |-- DEPLOYMENT.md
 |   |-- DOMAIN_SETUP.md
 |   |-- DOMAIN_AND_SERVER_BINDING.md
+|   |-- INFRA_TRANSITION_EKS.md
 |   |-- PUBLIC_DATA_APIS.md
 |   |-- VPC_SETUP.md
 |   `-- STRUCTURE.md
@@ -149,6 +150,7 @@ SeoulMate_BE/
 - `DEPLOYMENT.md`: EC2, EIP, RDS, Nginx, PM2 기준 실제 배포 절차
 - `DOMAIN_SETUP.md`: 가비아 도메인과 AWS 서버 연결 절차
 - `DOMAIN_AND_SERVER_BINDING.md`: EIP, DNS, 프런트, 백엔드, Nginx 값 연결 정리
+- `INFRA_TRANSITION_EKS.md`: EC2 기반 운영에서 EKS, ALB, 오토스케일링, CI/CD, 무중단 배포로 전환하는 상세 가이드
 - `PUBLIC_DATA_APIS.md`: 서울 공공데이터 API 후보 및 수집 전략
 - `VPC_SETUP.md`: VPC, subnet, route table, RDS subnet group 구성 절차
 - `STRUCTURE.md`: 현재 백엔드 구조 설명
