@@ -10,6 +10,7 @@
     "start": "node dist/server.js",
     "sync:public-data": "npm run build && node dist/jobs/runPublicDataSync.js",
     "convert:coordinates": "npm run build && node dist/jobs/runCoordinateConversion.js",
+    "sync:weather": "npm run build && node dist/jobs/runWeatherSync.js",
     "prepare": "node scripts/setupHusky.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
