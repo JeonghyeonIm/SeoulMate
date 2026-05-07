@@ -1,11 +1,19 @@
 import { db } from "../config/db";
 import type { UpsertWeatherForecastInput, WeatherForecast } from "../models/weatherForecast.model";
 
+const toForecastDate = (value: unknown): string => {
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  return String(value).slice(0, 10);
+};
+
 const mapRow = (row: Record<string, unknown>): WeatherForecast => ({
   id: Number(row.id),
   regionCode: String(row.region_code),
   regionName: (row.region_name as string | null) ?? null,
-  forecastDate: String(row.forecast_date).slice(0, 10),
+  forecastDate: toForecastDate(row.forecast_date),
   tempMin: row.temp_min === null ? null : Number(row.temp_min),
   tempMax: row.temp_max === null ? null : Number(row.temp_max),
   rainProbAm: row.rain_prob_am === null ? null : Number(row.rain_prob_am),

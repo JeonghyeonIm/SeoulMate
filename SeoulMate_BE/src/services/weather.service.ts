@@ -145,6 +145,10 @@ export const getMediumTermForecast = async (
       { date: fromDate, count: storedForecasts.length },
       "Medium-term forecast fetched from DB"
     );
+    logger.info(
+      { fromDate, forecastDates: storedForecasts.map((item) => item.forecastDate) },
+      "DB forecast match debug"
+    );
     const matchedForecast = targetDate
       ? storedForecasts.find((item) => item.forecastDate === fromDate)
       : storedForecasts[0];
