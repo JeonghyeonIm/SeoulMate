@@ -16,25 +16,11 @@ export interface SeoulOpenApiPage<T> {
   rows: T[];
 }
 
-export interface NightSpotDetail {
-  id: string;
-  title: string;
-  category: string | null;
-  address: string | null;
-  operatingHours: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  description: string | null;
-  sourceUrl: string;
-}
-
 const SEOUL_OPEN_API_BASE_URL = "http://openapi.seoul.go.kr:8088";
 const FOOD_HYGIENE_LIST_URL =
   "https://data.seoul.go.kr/dataList/datasetView.do?currentPageNo=&infId=OA-13663&searchKey=&searchValue=&serviceKind=1&srvType=F";
 const FOOD_HYGIENE_DOWNLOAD_URL =
   "https://datafile.seoul.go.kr/bigfile/iot/inf/nio_download.do?&useCache=false";
-const NIGHT_SPOT_LIST_URL = "https://culture.seoul.go.kr/night/sub/viewSpot/list.do";
-const NIGHT_SPOT_DETAIL_URL = "https://culture.seoul.go.kr/night/sub/viewSpot/view.do";
 
 const htmlEntityMap: Record<string, string> = {
   "&amp;": "&",
@@ -51,7 +37,7 @@ const decodeHtmlEntities = (value: string): string =>
     (entity) => htmlEntityMap[entity] ?? entity
   );
 
-const stripHtml = (value: string): string =>
+export const stripHtml = (value: string): string =>
   decodeHtmlEntities(value.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " "))
     .replace(/\s+\n/g, "\n")
     .replace(/\n\s+/g, "\n")
@@ -141,11 +127,6 @@ const parseCsv = (content: string): Record<string, string>[] => {
     );
 };
 
-const extractFirstMatch = (pattern: RegExp, text: string): string | null => {
-  const matched = pattern.exec(text);
-  return matched?.[1] ? stripHtml(matched[1]) : null;
-};
-
 const buildSeoulOpenApiUrl = (serviceName: string, startIndex: number, endIndex: number): string =>
   `${SEOUL_OPEN_API_BASE_URL}/${env.SEOUL_OPEN_API_KEY}/json/${serviceName}/${startIndex}/${endIndex}/`;
 
@@ -214,7 +195,7 @@ export const seoulOpenDataClient = {
       infSeq: "3"
     });
 
-    const csvContent = await fetchText(FOOD_HYGIENE_DOWNLOAD_URL, {
+    const csvResponse = await fetch(FOOD_HYGIENE_DOWNLOAD_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
@@ -222,70 +203,15 @@ export const seoulOpenDataClient = {
       body: formData.toString()
     });
 
+    if (!csvResponse.ok) {
+      throw new Error(`CSV download failed (${csvResponse.status})`);
+    }
+
+    const csvContent = new TextDecoder("euc-kr").decode(await csvResponse.arrayBuffer());
+
     return {
       fileName,
       rows: parseCsv(csvContent)
     };
-  },
-
-  async fetchNightSpotDetails(): Promise<NightSpotDetail[]> {
-    const ids = new Set<string>();
-
-    for (let pageIndex = 1; pageIndex <= 20; pageIndex += 1) {
-      const pageHtml = await fetchText(`${NIGHT_SPOT_LIST_URL}?pageIndex=${pageIndex}`);
-      const matches = pageHtml.matchAll(/view\.do\?viewId=(\d+)/g);
-      let foundOnPage = 0;
-
-      for (const match of matches) {
-        ids.add(match[1]);
-        foundOnPage += 1;
-      }
-
-      if (!foundOnPage) {
-        break;
-      }
-    }
-
-    const details: NightSpotDetail[] = [];
-
-    for (const id of ids) {
-      const sourceUrl = `${NIGHT_SPOT_DETAIL_URL}?viewId=${id}`;
-      const detailHtml = await fetchText(sourceUrl);
-      const title = extractFirstMatch(/<h2 class="view_name">([\s\S]*?)<\/h2>/, detailHtml);
-
-      if (!title) {
-        continue;
-      }
-
-      const category =
-        extractFirstMatch(/<div class="tag"[^>]*>([\s\S]*?)<\/div>/, detailHtml) ?? null;
-      const operatingHours =
-        extractFirstMatch(
-          /<div class="icon calendar">운영시간<\/div>\s*<div>([\s\S]*?)<\/div>/,
-          detailHtml
-        ) ?? null;
-      const address =
-        extractFirstMatch(
-          /<div class="map_tit"><strong>주소<\/strong><\/div>\s*<div class="map_txt">([\s\S]*?)<\/div>/,
-          detailHtml
-        ) ?? null;
-      const description =
-        extractFirstMatch(/<div class="editor">([\s\S]*?)<\/div>/, detailHtml) ?? null;
-      const latLngMatch = /la:'([^']+)', lo:'([^']+)'/.exec(detailHtml);
-
-      details.push({
-        id,
-        title,
-        category,
-        address,
-        operatingHours,
-        latitude: latLngMatch ? Number(latLngMatch[1]) : null,
-        longitude: latLngMatch ? Number(latLngMatch[2]) : null,
-        description,
-        sourceUrl
-      });
-    }
-
-    return details;
   }
 };

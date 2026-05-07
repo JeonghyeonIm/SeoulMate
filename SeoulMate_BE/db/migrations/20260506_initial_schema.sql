@@ -36,7 +36,7 @@ create table if not exists public_data (
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamp not null default current_timestamp,
   updated_at timestamp not null default current_timestamp,
-  constraint uq_public_data_source_record unique (source, source_record_id)
+  constraint uq_public_data_source_record unique (source_dataset, source_record_id)
 );
 
 create table if not exists recommendation_requests (

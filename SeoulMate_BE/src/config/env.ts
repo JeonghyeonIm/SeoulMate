@@ -34,10 +34,10 @@ export const env = {
   PORT: parsePort(process.env.PORT, 3000),
   DATABASE_URL: process.env.DATABASE_URL ?? "",
   DATABASE_SSL: parseBoolean(process.env.DATABASE_SSL, true),
-  POSTGRES_HOST: process.env.POSTGRES_HOST ?? "localhost",
+  POSTGRES_HOST: process.env.POSTGRES_HOST || "localhost",
   POSTGRES_PORT: parsePort(process.env.POSTGRES_PORT, 5432),
-  POSTGRES_DB: process.env.POSTGRES_DB ?? "seoulmate",
-  POSTGRES_USER: process.env.POSTGRES_USER ?? "postgres",
+  POSTGRES_DB: process.env.POSTGRES_DB || "seoulmate",
+  POSTGRES_USER: process.env.POSTGRES_USER || "postgres",
   POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD ?? "",
   SEOUL_OPEN_API_KEY: process.env.SEOUL_OPEN_API_KEY ?? ""
 } as const;

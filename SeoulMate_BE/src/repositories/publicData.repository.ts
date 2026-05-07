@@ -90,6 +90,59 @@ export const publicDataRepository = {
     return result.rows.map(mapPublicDataset);
   },
 
+  async replaceDataset(sourceDataset: string, items: UpsertPublicDatasetInput[]): Promise<void> {
+    const seen = new Map<string, UpsertPublicDatasetInput>();
+    for (const item of items) {
+      seen.set(`${item.sourceDataset ?? ""}\0${item.sourceRecordId ?? ""}`, item);
+    }
+    const deduped = [...seen.values()];
+
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("DELETE FROM public_data WHERE source_dataset = $1", [sourceDataset]);
+
+      const chunkSize = 200;
+      for (let index = 0; index < deduped.length; index += chunkSize) {
+        const chunk = deduped.slice(index, index + chunkSize);
+        const values: Array<number | string | null> = [];
+
+        const placeholders = chunk.map((item, rowIndex) => {
+          const offset = rowIndex * 11;
+          values.push(
+            item.sourceDataset ?? null,
+            item.sourceRecordId ?? null,
+            item.title,
+            item.category,
+            item.region ?? null,
+            item.address ?? null,
+            item.latitude ?? null,
+            item.longitude ?? null,
+            item.source ?? null,
+            item.sourceUrl ?? null,
+            JSON.stringify(item.metadata ?? {})
+          );
+          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}::jsonb)`;
+        });
+
+        await client.query(
+          `INSERT INTO public_data (
+            source_dataset, source_record_id, title, category, region, address,
+            latitude, longitude, source, source_url, metadata
+          ) VALUES ${placeholders.join(", ")}`,
+          values
+        );
+      }
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
   async upsertMany(items: UpsertPublicDatasetInput[]): Promise<void> {
     if (!items.length) {
       return;
@@ -98,7 +151,12 @@ export const publicDataRepository = {
     const chunkSize = 200;
 
     for (let index = 0; index < items.length; index += chunkSize) {
-      const chunk = items.slice(index, index + chunkSize);
+      const rawChunk = items.slice(index, index + chunkSize);
+      const seen = new Map<string, UpsertPublicDatasetInput>();
+      for (const item of rawChunk) {
+        seen.set(`${item.sourceDataset ?? ""}\0${item.sourceRecordId ?? ""}`, item);
+      }
+      const chunk = [...seen.values()];
       const values: Array<number | string | null> = [];
 
       const placeholders = chunk.map((item, rowIndex) => {
@@ -136,9 +194,9 @@ export const publicDataRepository = {
             metadata
           )
           VALUES ${placeholders.join(", ")}
-          ON CONFLICT (source, source_record_id)
+          ON CONFLICT (source_dataset, source_record_id)
           DO UPDATE SET
-            source_dataset = EXCLUDED.source_dataset,
+            source = EXCLUDED.source,
             title = EXCLUDED.title,
             category = EXCLUDED.category,
             region = EXCLUDED.region,

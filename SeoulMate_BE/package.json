@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "sync:public-data": "npm run build && node dist/jobs/runPublicDataSync.js",
+    "convert:coordinates": "npm run build && node dist/jobs/runCoordinateConversion.js",
     "prepare": "node scripts/setupHusky.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -27,7 +28,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "proj4": "^2.20.8"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -35,6 +37,7 @@
     "@types/express": "^5.0.3",
     "@types/node": "^24.10.1",
     "@types/pg": "^8.15.6",
+    "@types/proj4": "^2.5.6",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.32.0",

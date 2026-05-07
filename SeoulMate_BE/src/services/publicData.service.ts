@@ -1,12 +1,14 @@
-import { seoulOpenDataClient, type NightSpotDetail } from "../clients/seoulOpenData.client";
+import { seoulOpenDataClient, stripHtml } from "../clients/seoulOpenData.client";
 import {
   DAILY_PUBLIC_DATA_SYNC_HOUR_KST,
   DAILY_PUBLIC_DATA_SYNC_MINUTE_KST,
   DAILY_PUBLIC_DATA_SYNC_SOURCE,
-  DATASET_CATEGORY
+  DATASET_CATEGORY,
+  INITIAL_PUBLIC_DATA_SYNC_SOURCE
 } from "../constants/datasetType";
 import type { UpsertPublicDatasetInput } from "../models/publicDataset.model";
 import { publicDataRepository } from "../repositories/publicData.repository";
+import { epsg5174ToWgs84 } from "../utils/coordinates";
 
 interface SyncDatasetResult {
   dataset: string;
@@ -109,6 +111,24 @@ interface ParkRow {
   URL: string;
 }
 
+interface NightSpotRow {
+  NUM: string;
+  SUBJECT_CD?: string;
+  TITLE: string;
+  ADDR?: string;
+  LA?: string;
+  LO?: string;
+  TEL_NO?: string;
+  URL?: string;
+  OPERATING_TIME?: string;
+  FREE_YN?: string;
+  ENTR_FEE?: string;
+  CONTENTS?: string;
+  SUBWAY?: string;
+  BUS?: string;
+  PARKING_INFO?: string;
+}
+
 interface RestPermitRow {
   MGTNO: string;
   APVPERMYMD: string;
@@ -130,9 +150,6 @@ interface RestPermitRow {
   FACILTOTSCP: string;
   HOMEPAGE: string;
 }
-
-const INCLUDE_REST_AREA_PERMIT_SYNC =
-  process.env.INCLUDE_REST_AREA_PERMIT_SYNC?.trim().toLowerCase() === "true";
 
 const FOOD_HYGIENE_LIST_URL =
   "https://data.seoul.go.kr/dataList/datasetView.do?currentPageNo=&infId=OA-13663&searchKey=&searchValue=&serviceKind=1&srvType=F";
@@ -169,10 +186,7 @@ const sanitizeTitle = (value: string | null | undefined): string | null => {
 const compact = <T>(items: Array<T | null>): T[] =>
   items.filter((item): item is T => item !== null);
 
-const isActiveBusiness = (row: RestPermitRow): boolean => {
-  const state = [row.TRDSTATENM, row.DTLSTATENM].map((value) => value.trim());
-  return state.some((value) => value.includes("영업") || value.includes("정상"));
-};
+const isActiveBusiness = (row: RestPermitRow): boolean => row.TRDSTATENM.trim().includes("영업");
 
 const toVisitSeoulItems = (
   rows: VisitSeoulRow[],
@@ -223,10 +237,16 @@ const upsertDataset = async (
   items: UpsertPublicDatasetInput[]
 ): Promise<SyncDatasetResult> => {
   await publicDataRepository.upsertMany(items);
-  return {
-    dataset,
-    importedCount: items.length
-  };
+  return { dataset, importedCount: items.length };
+};
+
+const replaceDataset = async (
+  dataset: string,
+  sourceDataset: string,
+  items: UpsertPublicDatasetInput[]
+): Promise<SyncDatasetResult> => {
+  await publicDataRepository.replaceDataset(sourceDataset, items);
+  return { dataset, importedCount: items.length };
 };
 
 const syncVisitSeoulDatasets = async (): Promise<SyncDatasetResult[]> => {
@@ -313,7 +333,7 @@ const syncCulturalEventDataset = async (): Promise<SyncDatasetResult> => {
     })
   );
 
-  return upsertDataset(DATASET_CATEGORY.CULTURAL_EVENT, items);
+  return replaceDataset(DATASET_CATEGORY.CULTURAL_EVENT, "culturalEventInfo", items);
 };
 
 const syncCulturalSpaceDataset = async (): Promise<SyncDatasetResult> => {
@@ -400,33 +420,29 @@ const syncParkDataset = async (): Promise<SyncDatasetResult> => {
 };
 
 const syncRestAreaPermitDataset = async (): Promise<SyncDatasetResult> => {
-  const pageSize = 1000;
-  const firstPage = await seoulOpenDataClient.fetchSeoulOpenApiPage<RestPermitRow>(
-    "LOCALDATA_072404",
-    1,
-    pageSize
-  );
+  const rows =
+    await seoulOpenDataClient.fetchAllSeoulOpenApiRows<RestPermitRow>("LOCALDATA_072405");
 
-  const items: UpsertPublicDatasetInput[] = [];
-  const appendItems = (rows: RestPermitRow[]) => {
-    for (const row of rows) {
-      if (!isActiveBusiness(row)) {
-        continue;
-      }
-
+  const items = compact(
+    rows.filter(isActiveBusiness).map((row) => {
       const title = sanitizeTitle(row.BPLCNM);
       if (!title) {
-        continue;
+        return null;
       }
 
       const address = trimToNull(row.RDNWHLADDR) ?? trimToNull(row.SITEWHLADDR);
-      items.push({
-        sourceDataset: "LOCALDATA_072404",
+      const x5174 = parseNumber(row.X);
+      const y5174 = parseNumber(row.Y);
+      const wgs84 = x5174 !== null && y5174 !== null ? epsg5174ToWgs84(x5174, y5174) : null;
+      return {
+        sourceDataset: "LOCALDATA_072405",
         sourceRecordId: row.MGTNO,
         title,
         category: DATASET_CATEGORY.REST_AREA_PERMIT,
         region: inferRegion(address),
         address,
+        latitude: wgs84?.lat ?? null,
+        longitude: wgs84?.lng ?? null,
         source: "seoul_open_api",
         sourceUrl: trimToNull(row.HOMEPAGE),
         metadata: {
@@ -445,30 +461,70 @@ const syncRestAreaPermitDataset = async (): Promise<SyncDatasetResult> => {
           waterSupplyFacility: trimToNull(row.WTRSPLYFACILSENM),
           totalFacilityScale: trimToNull(row.FACILTOTSCP)
         }
-      });
-    }
-  };
+      } satisfies UpsertPublicDatasetInput;
+    })
+  );
 
-  appendItems(firstPage.rows);
+  return replaceDataset(DATASET_CATEGORY.REST_AREA_PERMIT, "LOCALDATA_072405", items);
+};
 
-  for (let startIndex = pageSize + 1; startIndex <= firstPage.totalCount; startIndex += pageSize) {
-    const endIndex = Math.min(startIndex + pageSize - 1, firstPage.totalCount);
-    const page = await seoulOpenDataClient.fetchSeoulOpenApiPage<RestPermitRow>(
-      "LOCALDATA_072404",
-      startIndex,
-      endIndex
-    );
-    appendItems(page.rows);
-  }
+const syncGeneralRestaurantDataset = async (): Promise<SyncDatasetResult> => {
+  const rows =
+    await seoulOpenDataClient.fetchAllSeoulOpenApiRows<RestPermitRow>("LOCALDATA_072404");
 
-  return upsertDataset(DATASET_CATEGORY.REST_AREA_PERMIT, items);
+  const items = compact(
+    rows.filter(isActiveBusiness).map((row) => {
+      const title = sanitizeTitle(row.BPLCNM);
+      if (!title) {
+        return null;
+      }
+
+      const address = trimToNull(row.RDNWHLADDR) ?? trimToNull(row.SITEWHLADDR);
+      const x5174 = parseNumber(row.X);
+      const y5174 = parseNumber(row.Y);
+      const wgs84 = x5174 !== null && y5174 !== null ? epsg5174ToWgs84(x5174, y5174) : null;
+      return {
+        sourceDataset: "LOCALDATA_072404",
+        sourceRecordId: row.MGTNO,
+        title,
+        category: DATASET_CATEGORY.GENERAL_RESTAURANT_PERMIT,
+        region: inferRegion(address),
+        address,
+        latitude: wgs84?.lat ?? null,
+        longitude: wgs84?.lng ?? null,
+        source: "seoul_open_api",
+        sourceUrl: trimToNull(row.HOMEPAGE),
+        metadata: {
+          approvalDate: trimToNull(row.APVPERMYMD),
+          tradeState: trimToNull(row.TRDSTATENM),
+          detailState: trimToNull(row.DTLSTATENM),
+          closeDate: trimToNull(row.DCBYMD),
+          phone: trimToNull(row.SITETEL),
+          siteArea: trimToNull(row.SITEAREA),
+          lastModifiedAt: trimToNull(row.LASTMODTS),
+          updatedAt: trimToNull(row.UPDATEDT),
+          businessType: trimToNull(row.UPTAENM),
+          sanitizedBusinessType: trimToNull(row.SNTUPTAENM),
+          coordinateX5174: trimToNull(row.X),
+          coordinateY5174: trimToNull(row.Y),
+          waterSupplyFacility: trimToNull(row.WTRSPLYFACILSENM),
+          totalFacilityScale: trimToNull(row.FACILTOTSCP)
+        }
+      } satisfies UpsertPublicDatasetInput;
+    })
+  );
+
+  return replaceDataset(DATASET_CATEGORY.GENERAL_RESTAURANT_PERMIT, "LOCALDATA_072404", items);
 };
 
 const syncFoodHygieneDataset = async (): Promise<SyncDatasetResult> => {
   const { fileName, rows } = await seoulOpenDataClient.fetchLatestFoodHygieneRows();
+  const PERMIT_COVERED_TYPES = new Set(["일반음식점", "휴게음식점"]);
+
   const items = compact(
     rows
       .filter((row) => !trimToNull(row["폐업일자"]))
+      .filter((row) => !PERMIT_COVERED_TYPES.has(row["업종명"]?.trim()))
       .map((row) => {
         const title = sanitizeTitle(row["업소명"]);
         if (!title) {
@@ -479,7 +535,7 @@ const syncFoodHygieneDataset = async (): Promise<SyncDatasetResult> => {
 
         return {
           sourceDataset: "OA-13663",
-          sourceRecordId: `${row["년도"]}-${row["업소일련번호"]}`,
+          sourceRecordId: `${row["시군구코드"]}-${row["업종코드"]}-${row["년도"]}-${row["업소일련번호"]}`,
           title,
           category: DATASET_CATEGORY.FOOD_HYGIENE,
           region: inferRegion(address),
@@ -509,34 +565,43 @@ const syncFoodHygieneDataset = async (): Promise<SyncDatasetResult> => {
       })
   );
 
-  return upsertDataset(DATASET_CATEGORY.FOOD_HYGIENE, items);
+  return replaceDataset(DATASET_CATEGORY.FOOD_HYGIENE, "OA-13663", items);
 };
 
 const syncNightSpotDataset = async (): Promise<SyncDatasetResult> => {
-  const details = await seoulOpenDataClient.fetchNightSpotDetails();
+  const rows = await seoulOpenDataClient.fetchAllSeoulOpenApiRows<NightSpotRow>("viewNightSpot");
 
   const items = compact(
-    details.map((detail: NightSpotDetail) => {
-      const title = sanitizeTitle(detail.title);
+    rows.map((row) => {
+      const title = sanitizeTitle(row.TITLE);
       if (!title) {
         return null;
       }
 
+      const address = trimToNull(row.ADDR);
+      const rawContents = trimToNull(row.CONTENTS);
+
       return {
-        sourceDataset: "culture_seoul_night_view_spot",
-        sourceRecordId: detail.id,
+        sourceDataset: "viewNightSpot",
+        sourceRecordId: String(row.NUM),
         title,
         category: DATASET_CATEGORY.NIGHT_SPOT,
-        region: inferRegion(detail.address),
-        address: detail.address,
-        latitude: detail.latitude,
-        longitude: detail.longitude,
-        source: "seoul_culture_portal",
-        sourceUrl: detail.sourceUrl,
+        region: inferRegion(address),
+        address,
+        latitude: parseNumber(row.LA),
+        longitude: parseNumber(row.LO),
+        source: "seoul_open_api",
+        sourceUrl: trimToNull(row.URL),
         metadata: {
-          nightCategory: detail.category,
-          operatingHours: detail.operatingHours,
-          description: detail.description
+          subjectCode: trimToNull(row.SUBJECT_CD),
+          phone: trimToNull(row.TEL_NO),
+          operatingTime: trimToNull(row.OPERATING_TIME),
+          freeYn: trimToNull(row.FREE_YN),
+          entranceFee: trimToNull(row.ENTR_FEE),
+          description: rawContents ? stripHtml(rawContents) : null,
+          subway: trimToNull(row.SUBWAY),
+          bus: trimToNull(row.BUS),
+          parkingInfo: trimToNull(row.PARKING_INFO)
         }
       } satisfies UpsertPublicDatasetInput;
     })
@@ -545,24 +610,44 @@ const syncNightSpotDataset = async (): Promise<SyncDatasetResult> => {
   return upsertDataset(DATASET_CATEGORY.NIGHT_SPOT, items);
 };
 
-export const syncNonRealtimePublicData = async (): Promise<PublicDataSyncSummary> => {
+export const syncDailyPublicData = async (): Promise<PublicDataSyncSummary> => {
   const run = await publicDataRepository.beginSyncRun(DAILY_PUBLIC_DATA_SYNC_SOURCE);
   const startedAt = new Date().toISOString();
 
   try {
     const datasets: SyncDatasetResult[] = [];
-    const skippedDatasets: string[] = [];
+    datasets.push(await syncCulturalSpaceDataset());
+    datasets.push(await syncCulturalEventDataset());
+
+    const totalImportedCount = datasets.reduce((sum, dataset) => sum + dataset.importedCount, 0);
+    await publicDataRepository.completeSyncRun(run.id, totalImportedCount, 0);
+
+    return {
+      source: DAILY_PUBLIC_DATA_SYNC_SOURCE,
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      totalImportedCount,
+      datasets
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown sync error";
+    await publicDataRepository.failSyncRun(run.id, message);
+    throw error;
+  }
+};
+
+export const syncNonRealtimePublicData = async (): Promise<PublicDataSyncSummary> => {
+  const run = await publicDataRepository.beginSyncRun(INITIAL_PUBLIC_DATA_SYNC_SOURCE);
+  const startedAt = new Date().toISOString();
+
+  try {
+    const datasets: SyncDatasetResult[] = [];
     datasets.push(...(await syncVisitSeoulDatasets()));
     datasets.push(await syncParkDataset());
     datasets.push(await syncCulturalSpaceDataset());
     datasets.push(await syncCulturalEventDataset());
-
-    if (INCLUDE_REST_AREA_PERMIT_SYNC) {
-      datasets.push(await syncRestAreaPermitDataset());
-    } else {
-      skippedDatasets.push(DATASET_CATEGORY.REST_AREA_PERMIT);
-    }
-
+    datasets.push(await syncRestAreaPermitDataset());
+    datasets.push(await syncGeneralRestaurantDataset());
     datasets.push(await syncFoodHygieneDataset());
     datasets.push(await syncNightSpotDataset());
 
@@ -571,12 +656,11 @@ export const syncNonRealtimePublicData = async (): Promise<PublicDataSyncSummary
     await publicDataRepository.completeSyncRun(run.id, totalImportedCount, 0);
 
     return {
-      source: DAILY_PUBLIC_DATA_SYNC_SOURCE,
+      source: INITIAL_PUBLIC_DATA_SYNC_SOURCE,
       startedAt,
       finishedAt: new Date().toISOString(),
       totalImportedCount,
-      datasets,
-      skippedDatasets
+      datasets
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown sync error";
@@ -605,7 +689,7 @@ export const scheduleDailyPublicDataSync = (): void => {
   const scheduleNext = () => {
     dailySyncTimer = setTimeout(async () => {
       try {
-        await syncNonRealtimePublicData();
+        await syncDailyPublicData();
       } catch (error) {
         console.error("Daily public data sync failed", error);
       } finally {
