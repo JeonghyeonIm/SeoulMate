@@ -1,3 +1,37 @@
+==== 정현아 꼭 읽어봐. 혁준이 형아가 ====
+
+## 수정 1. 중기예보 DB 조회로 변경
+
+**수정 전**
+- `getMediumTermForecast()`가 `weather_forecasts` 테이블을 무시하고 KMA API를 직접 호출
+- DB에 데이터가 있어도 항상 `NO_DATA`가 발생할 수 있었음
+
+**수정 후**
+- `weather_forecasts` DB를 먼저 조회하고, 데이터가 없을 때만 KMA API fallback 하도록 변경
+- 실제 DB 조회 및 날짜 매칭 성공까지 확인 완료
+
+---
+
+## 수정 2. 추천 API 응답에 날씨 정보 추가
+
+**수정 전**
+- LangGraph 내부에서 `context.weather`는 생성되지만 최종 응답 JSON에는 누락됨
+
+**수정 후**
+- 추천 응답에 `weather` 필드가 정상 포함되도록 반영
+- `source`, `rainProbability`, `skyStatus`, `temperature`, `weatherAlert`를 함께 전달
+
+---
+
+## 기타 작업
+
+- `@langchain/langgraph` 패키지 설치
+- `pino` 로거 세팅 및 `ts-node-dev` 환경 호환 방식으로 출력 경로 정리
+- 추천 요청 body의 `dateTime` 필드를 LangGraph state까지 전달하도록 수정
+- `fetchContextData` 노드에 날씨 분기 디버그 로그 추가
+
+---
+
 # SeoulMate 백엔드 구현 현황 정리
 
 ## 1. 초기 대비 구현된 것
