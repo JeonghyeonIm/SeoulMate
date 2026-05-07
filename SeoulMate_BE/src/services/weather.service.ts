@@ -1,5 +1,5 @@
 import { kmaClient, type MidLandItem, type MidTaItem } from "../clients/kma.client";
-import type { UpsertWeatherForecastInput } from "../models/weatherForecast.model";
+import type { UpsertWeatherForecastInput, WeatherForecast } from "../models/weatherForecast.model";
 import { weatherForecastRepository } from "../repositories/weatherForecast.repository";
 import { latLngToGrid } from "../utils/kmaGrid";
 
@@ -36,6 +36,28 @@ const addDays = (dateStr: string, days: number): string => {
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 };
+
+const toIsoDate = (value: string | Date): string => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Invalid date value: ${String(value)}`);
+  }
+
+  return date.toISOString().slice(0, 10);
+};
+
+const mapStoredForecast = (forecast: WeatherForecast): UpsertWeatherForecastInput => ({
+  regionCode: forecast.regionCode,
+  regionName: forecast.regionName ?? undefined,
+  forecastDate: forecast.forecastDate,
+  tempMin: forecast.tempMin,
+  tempMax: forecast.tempMax,
+  rainProbAm: forecast.rainProbAm,
+  rainProbPm: forecast.rainProbPm,
+  weatherAm: forecast.weatherAm,
+  weatherPm: forecast.weatherPm,
+  baseTime: forecast.baseTime
+});
 
 const buildForecastItems = (
   tmFc: string,
@@ -109,6 +131,24 @@ export const syncMediumTermForecast = async (): Promise<void> => {
 export const getMediumTermForecast = async (
   targetDate?: string
 ): Promise<UpsertWeatherForecastInput | null> => {
+  const fromDate = targetDate
+    ? toIsoDate(targetDate)
+    : toKstDate(new Date()).toISOString().slice(0, 10);
+  const storedForecasts = await weatherForecastRepository.findByRegionFromDate(
+    SEOUL_TA_REGION,
+    fromDate
+  );
+
+  if (storedForecasts.length) {
+    const matchedForecast = targetDate
+      ? storedForecasts.find((item) => item.forecastDate === fromDate)
+      : storedForecasts[0];
+
+    if (matchedForecast) {
+      return mapStoredForecast(matchedForecast);
+    }
+  }
+
   const tmFc = buildTmFc(new Date());
 
   const [taItems, landItems] = await Promise.all([
@@ -141,9 +181,7 @@ const buildHourlyBaseTime = (utcNow: Date): { baseDate: string; baseTime: string
   };
 };
 
-const buildUltraShortForecastBaseTime = (
-  utcNow: Date
-): { baseDate: string; baseTime: string } => {
+const buildUltraShortForecastBaseTime = (utcNow: Date): { baseDate: string; baseTime: string } => {
   const kst = toKstDate(utcNow);
   const kstMinusDelay = new Date(kst.getTime() - 45 * 60 * 1000);
   return {
