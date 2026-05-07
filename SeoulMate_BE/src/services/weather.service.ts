@@ -106,38 +106,88 @@ export const syncMediumTermForecast = async (): Promise<void> => {
   console.log(JSON.stringify({ event: "weather_sync_completed", tmFc, count: items.length }));
 };
 
+export const getMediumTermForecast = async (
+  targetDate?: string
+): Promise<UpsertWeatherForecastInput | null> => {
+  const tmFc = buildTmFc(new Date());
+
+  const [taItems, landItems] = await Promise.all([
+    kmaClient.fetchMidTa(SEOUL_TA_REGION, tmFc),
+    kmaClient.fetchMidLandFcst(SEOUL_LAND_REGION, tmFc)
+  ]);
+
+  if (!taItems.length || !landItems.length) {
+    return null;
+  }
+
+  const items = buildForecastItems(tmFc, taItems[0], landItems[0]);
+  return (
+    items.find((item) => (targetDate ? item.forecastDate === targetDate.slice(0, 10) : false)) ??
+    items[0] ??
+    null
+  );
+};
+
 // ── 단기/초단기 실시간 조회 ────────────────────────────────────────────────────
 
-const buildBaseTime = (
-  utcNow: Date,
-  intervalHours: number
-): { baseDate: string; baseTime: string } => {
+const buildHourlyBaseTime = (utcNow: Date): { baseDate: string; baseTime: string } => {
   const kst = toKstDate(utcNow);
-  // 발표시각은 매 intervalHours 단위, 실제 제공까지 10분 걸림
   const kstMinusDelay = new Date(kst.getTime() - 10 * 60 * 1000);
   const h = kstMinusDelay.getUTCHours();
-  const slot = Math.floor(h / intervalHours) * intervalHours;
+
   return {
     baseDate: kstMinusDelay.toISOString().slice(0, 10).replace(/-/g, ""),
-    baseTime: String(slot).padStart(2, "0") + "00"
+    baseTime: String(h).padStart(2, "0") + "00"
+  };
+};
+
+const buildUltraShortForecastBaseTime = (
+  utcNow: Date
+): { baseDate: string; baseTime: string } => {
+  const kst = toKstDate(utcNow);
+  const kstMinusDelay = new Date(kst.getTime() - 45 * 60 * 1000);
+  return {
+    baseDate: kstMinusDelay.toISOString().slice(0, 10).replace(/-/g, ""),
+    baseTime: String(kstMinusDelay.getUTCHours()).padStart(2, "0") + "30"
+  };
+};
+
+const buildShortTermBaseTime = (utcNow: Date): { baseDate: string; baseTime: string } => {
+  const kst = toKstDate(utcNow);
+  const kstMinusDelay = new Date(kst.getTime() - 10 * 60 * 1000);
+  const baseHours = [2, 5, 8, 11, 14, 17, 20, 23];
+  const hour = kstMinusDelay.getUTCHours();
+  const slot = [...baseHours].reverse().find((baseHour) => baseHour <= hour);
+
+  if (slot !== undefined) {
+    return {
+      baseDate: kstMinusDelay.toISOString().slice(0, 10).replace(/-/g, ""),
+      baseTime: String(slot).padStart(2, "0") + "00"
+    };
+  }
+
+  const previousDay = new Date(kstMinusDelay.getTime() - 24 * 60 * 60 * 1000);
+  return {
+    baseDate: previousDay.toISOString().slice(0, 10).replace(/-/g, ""),
+    baseTime: "2300"
   };
 };
 
 export const getShortTermForecast = async (lat: number, lng: number) => {
   const { nx, ny } = latLngToGrid(lat, lng);
-  const { baseDate, baseTime } = buildBaseTime(new Date(), 3);
+  const { baseDate, baseTime } = buildShortTermBaseTime(new Date());
   return kmaClient.fetchShortTerm(nx, ny, baseDate, baseTime);
 };
 
 export const getUltraShortTermForecast = async (lat: number, lng: number) => {
   const { nx, ny } = latLngToGrid(lat, lng);
-  const { baseDate, baseTime } = buildBaseTime(new Date(), 1);
+  const { baseDate, baseTime } = buildUltraShortForecastBaseTime(new Date());
   return kmaClient.fetchUltraShortTerm(nx, ny, baseDate, baseTime);
 };
 
 export const getCurrentWeather = async (lat: number, lng: number) => {
   const { nx, ny } = latLngToGrid(lat, lng);
-  const { baseDate, baseTime } = buildBaseTime(new Date(), 1);
+  const { baseDate, baseTime } = buildHourlyBaseTime(new Date());
   return kmaClient.fetchUltraShortNcst(nx, ny, baseDate, baseTime);
 };
 
@@ -149,8 +199,6 @@ let weatherSyncTimer: NodeJS.Timeout | null = null;
 
 const getDelayUntilNextWeatherSync = (): number => {
   const kst = toKstDate(new Date());
-  const next = new Date(kst);
-
   // 다음 발표시각: 06:10 또는 18:10 KST
   const slots = [
     { h: 6, m: 10 },

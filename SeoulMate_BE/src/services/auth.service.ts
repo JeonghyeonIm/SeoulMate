@@ -1,20 +1,20 @@
 // src/services/auth.service.ts
 import bcrypt from "bcrypt";
-import { v4 as uuidv4 } from "uuid";
 
-import { save as savePreference } from "../repositories/preference.repository";
-import { findByEmail, findByNickname, save as saveUser } from "../repositories/user.repository";
+import type { UserProfile } from "../models/user.model";
+import { userRepository } from "../repositories/user.repository";
 import {
+  type AuthResponseBody,
   type SignupResponseBody,
-  type UserRecord,
   type ValidatedSignupPayload
 } from "../types/auth.types";
 import { ApiError } from "../utils/ApiError";
+import { issueAuthTokens, verifyToken } from "../utils/jwt";
 
 const SALT_ROUNDS: number = 10;
 
 async function ensureEmailAvailable(email: string): Promise<void> {
-  const existingUser: UserRecord | null = await findByEmail(email);
+  const existingUser: UserProfile | null = await userRepository.getByEmail(email);
 
   if (existingUser !== null) {
     throw new ApiError(409, "이미 사용 중인 이메일입니다.");
@@ -22,7 +22,7 @@ async function ensureEmailAvailable(email: string): Promise<void> {
 }
 
 async function ensureNicknameAvailable(nickname: string): Promise<void> {
-  const existingUser: UserRecord | null = await findByNickname(nickname);
+  const existingUser: UserProfile | null = await userRepository.getByNickname(nickname);
 
   if (existingUser !== null) {
     throw new ApiError(409, "이미 사용 중인 닉네임입니다.");
@@ -49,29 +49,65 @@ export async function signup(payload: ValidatedSignupPayload): Promise<SignupRes
   await ensureNicknameAvailable(payload.nickname);
 
   const passwordHash: string | null = await buildPassword(payload.provider, payload.password);
-  const userId: string = uuidv4();
-  const createdAt: string = new Date().toISOString();
-
-  await saveUser({
-    id: userId,
+  const user = await userRepository.createUser({
     email: payload.email,
-    password: passwordHash,
+    passwordHash: passwordHash ?? `${payload.provider}:oauth`,
     nickname: payload.nickname,
-    provider: payload.provider,
-    createdAt
+    preferredCategory: payload.preferences?.vibes?.join(",") ?? null
   });
 
-  if (payload.preferences?.vibes !== null && payload.preferences !== null) {
-    await savePreference({
-      userId,
-      vibes: payload.preferences.vibes
-    });
+  return {
+    id: String(user.id),
+    email: user.email,
+    nickname: user.nickname,
+    createdAt: user.createdAt
+  };
+}
+
+export async function login(email: string, password: string): Promise<AuthResponseBody> {
+  const user = await userRepository.getAuthByEmail(email.trim().toLowerCase());
+
+  if (!user || !user.passwordHash.startsWith("$2")) {
+    throw new ApiError(401, "Invalid email or password");
+  }
+
+  const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+  if (!isValidPassword) {
+    throw new ApiError(401, "Invalid email or password");
   }
 
   return {
-    id: userId,
-    email: payload.email,
-    nickname: payload.nickname,
-    createdAt
+    user: {
+      id: user.id,
+      email: user.email,
+      nickname: user.nickname
+    },
+    ...issueAuthTokens(user.id)
   };
+}
+
+export async function refreshAuth(refreshToken: string): Promise<AuthResponseBody> {
+  try {
+    const payload = verifyToken(refreshToken, "refresh");
+    const user = await userRepository.getById(Number(payload.sub));
+
+    if (!user) {
+      throw new ApiError(401, "User not found");
+    }
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        nickname: user.nickname
+      },
+      ...issueAuthTokens(user.id)
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError(401, "Invalid refresh token");
+  }
 }

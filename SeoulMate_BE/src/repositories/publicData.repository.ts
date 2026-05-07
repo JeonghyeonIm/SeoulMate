@@ -16,6 +16,16 @@ export interface PublicDataSyncRun {
   finishedAt: string | null;
 }
 
+export interface RecommendationCandidateSearchParams {
+  region?: string;
+  districts?: string[];
+  regionAliases?: string[];
+  includeTitleRegionMatch?: boolean;
+  sourceDatasets?: string[];
+  keywords?: string[];
+  pageSize?: number;
+}
+
 const mapPublicDataset = (row: Record<string, unknown>): PublicDataset => ({
   id: Number(row.id),
   sourceDataset: (row.source_dataset as string | null) ?? null,
@@ -50,25 +60,66 @@ export const publicDataRepository = {
     return result.rowCount ? mapPublicDataset(result.rows[0]) : null;
   },
 
-  async search(params: PublicDatasetSearchParams): Promise<PublicDataset[]> {
+  buildSearchWhere(params: PublicDatasetSearchParams): {
+    whereClause: string;
+    values: Array<string | number | string[]>;
+  } {
     const clauses: string[] = [];
-    const values: Array<string | number> = [];
+    const values: Array<string | number | string[]> = [];
 
     if (params.keyword) {
       values.push(`%${params.keyword}%`);
-      clauses.push(`title ILIKE $${values.length}`);
+      const placeholder = `$${values.length}`;
+      clauses.push(
+        `(title ILIKE ${placeholder} OR category ILIKE ${placeholder} OR address ILIKE ${placeholder})`
+      );
     }
 
     if (params.region) {
-      values.push(params.region);
-      clauses.push(`region = $${values.length}`);
+      values.push(`%${params.region}%`);
+      const placeholder = `$${values.length}`;
+      clauses.push(
+        `(region ILIKE ${placeholder} OR address ILIKE ${placeholder} OR title ILIKE ${placeholder})`
+      );
     }
 
     if (params.category) {
-      values.push(params.category);
-      clauses.push(`category = $${values.length}`);
+      const categoryAliases: Record<string, string[]> = {
+        카페: ["카페", "커피", "디저트", "베이커리", "휴게"],
+        음식점: ["음식", "식당", "맛집", "레스토랑", "restaurant"],
+        문화공간: ["문화", "전시", "공연", "박물관", "미술관"],
+        산책: ["산책", "공원", "자연", "숲"],
+        공원: ["공원", "산책", "자연", "숲"],
+        관광명소: ["관광", "명소", "야경"]
+      };
+      const aliases = categoryAliases[params.category] ?? [params.category];
+      values.push(aliases.map((alias) => `%${alias}%`));
+      const placeholder = `$${values.length}`;
+      clauses.push(
+        `(category ILIKE ANY(${placeholder}) OR title ILIKE ANY(${placeholder}) OR address ILIKE ANY(${placeholder}) OR metadata::text ILIKE ANY(${placeholder}))`
+      );
     }
 
+    return {
+      whereClause: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "",
+      values
+    };
+  },
+
+  async countSearch(params: PublicDatasetSearchParams): Promise<number> {
+    const { whereClause, values } = this.buildSearchWhere(params);
+    const result = await db.query(
+      `SELECT count(*)::int AS total
+         FROM public_data
+         ${whereClause}`,
+      values
+    );
+
+    return Number(result.rows[0]?.total ?? 0);
+  },
+
+  async search(params: PublicDatasetSearchParams): Promise<PublicDataset[]> {
+    const { whereClause, values } = this.buildSearchWhere(params);
     const page = Math.max(1, params.page ?? 1);
     const pageSize = Math.max(1, Math.min(params.pageSize ?? 20, 100));
     values.push(pageSize);
@@ -76,7 +127,6 @@ export const publicDataRepository = {
     values.push((page - 1) * pageSize);
     const offsetIndex = values.length;
 
-    const whereClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     const result = await db.query(
       `SELECT *
          FROM public_data
@@ -84,6 +134,102 @@ export const publicDataRepository = {
         ORDER BY updated_at DESC, id DESC
         LIMIT $${limitIndex}
        OFFSET $${offsetIndex}`,
+      values
+    );
+
+    return result.rows.map(mapPublicDataset);
+  },
+
+  async findRecommendationCandidates(
+    params: RecommendationCandidateSearchParams
+  ): Promise<PublicDataset[]> {
+    const clauses: string[] = [];
+    const values: Array<string | number | string[]> = [];
+    const orderCases: string[] = [];
+
+    const normalizeList = (items?: string[]): string[] =>
+      [...new Set((items ?? []).map((item) => item.trim()).filter(Boolean))];
+
+    const toLikePatterns = (items: string[]): string[] => items.map((item) => `%${item}%`);
+
+    const pushTextMatch = (columns: string[], value: string): string => {
+      values.push(`%${value}%`);
+      const placeholder = `$${values.length}`;
+      return `(${columns.map((column) => `${column} ILIKE ${placeholder}`).join(" OR ")})`;
+    };
+
+    const districts = normalizeList(params.districts);
+    const regionAliases = normalizeList(params.regionAliases);
+
+    let districtClause: string | undefined;
+    if (districts.length) {
+      values.push(districts);
+      const exactDistrictPlaceholder = `$${values.length}`;
+      const exactDistrictClause = `region = ANY(${exactDistrictPlaceholder})`;
+
+      values.push(toLikePatterns(districts));
+      const districtPatternPlaceholder = `$${values.length}`;
+      const districtPatternClause = `(region ILIKE ANY(${districtPatternPlaceholder}) OR address ILIKE ANY(${districtPatternPlaceholder}))`;
+
+      districtClause = `(${exactDistrictClause} OR ${districtPatternClause})`;
+      orderCases.push(`WHEN ${exactDistrictClause} THEN 1`);
+    }
+
+    let regionAliasClause: string | undefined;
+    if (regionAliases.length) {
+      values.push(toLikePatterns(regionAliases));
+      const aliasPlaceholder = `$${values.length}`;
+      const aliasColumns = params.includeTitleRegionMatch
+        ? ["region", "address", "title"]
+        : ["region", "address"];
+      regionAliasClause = `(${aliasColumns
+        .map((column) => `${column} ILIKE ANY(${aliasPlaceholder})`)
+        .join(" OR ")})`;
+      orderCases.unshift(`WHEN ${regionAliasClause} THEN 0`);
+    }
+
+    if (districtClause) {
+      clauses.push(districtClause);
+    } else if (regionAliasClause) {
+      clauses.push(regionAliasClause);
+    } else if (params.region) {
+      const regionClause = pushTextMatch(["region", "address"], params.region);
+      clauses.push(regionClause);
+      orderCases.push(`WHEN ${regionClause} THEN 0`);
+    }
+
+    if (params.sourceDatasets?.length) {
+      values.push(params.sourceDatasets);
+      clauses.push(`source_dataset = ANY($${values.length})`);
+    }
+
+    const normalizedKeywords = (params.keywords ?? [])
+      .map((keyword) => keyword.trim())
+      .filter((keyword) => keyword.length > 0);
+
+    if (normalizedKeywords.length) {
+      values.push(normalizedKeywords.map((keyword) => `%${keyword}%`));
+      const placeholder = `$${values.length}`;
+      clauses.push(
+        `(title ILIKE ANY(${placeholder}) OR category ILIKE ANY(${placeholder}) OR address ILIKE ANY(${placeholder}) OR metadata::text ILIKE ANY(${placeholder}))`
+      );
+    }
+
+    const pageSize = Math.max(1, Math.min(params.pageSize ?? 60, 120));
+    values.push(pageSize);
+    const limitIndex = values.length;
+
+    const whereClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const orderClause = orderCases.length
+      ? `CASE ${orderCases.join(" ")} ELSE 1 END, updated_at DESC, id DESC`
+      : "updated_at DESC, id DESC";
+
+    const result = await db.query(
+      `SELECT *
+         FROM public_data
+         ${whereClause}
+        ORDER BY ${orderClause}
+        LIMIT $${limitIndex}`,
       values
     );
 

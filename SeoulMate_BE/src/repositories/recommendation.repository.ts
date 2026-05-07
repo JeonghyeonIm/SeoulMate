@@ -72,6 +72,57 @@ export const recommendationRepository = {
     return mapRecommendationRequest(result.rows[0]);
   },
 
+  async updateRequestStatus(
+    id: number,
+    status: RecommendationRequest["status"]
+  ): Promise<RecommendationRequest | null> {
+    const result = await db.query(
+      `UPDATE recommendation_requests
+          SET status = $2,
+              updated_at = now()
+        WHERE id = $1
+        RETURNING *`,
+      [id, status]
+    );
+
+    return result.rowCount ? mapRecommendationRequest(result.rows[0]) : null;
+  },
+
+  async getRequestById(id: number): Promise<RecommendationRequest | null> {
+    const result = await db.query(`SELECT * FROM recommendation_requests WHERE id = $1`, [id]);
+    return result.rowCount ? mapRecommendationRequest(result.rows[0]) : null;
+  },
+
+  async listRequestsByUser(
+    userId: number,
+    params: { page?: number; pageSize?: number }
+  ): Promise<RecommendationRequest[]> {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.max(1, Math.min(params.pageSize ?? 20, 100));
+    const result = await db.query(
+      `SELECT *
+         FROM recommendation_requests
+        WHERE user_id = $1
+        ORDER BY created_at DESC, id DESC
+        LIMIT $2
+       OFFSET $3`,
+      [userId, pageSize, (page - 1) * pageSize]
+    );
+
+    return result.rows.map(mapRecommendationRequest);
+  },
+
+  async countRequestsByUser(userId: number): Promise<number> {
+    const result = await db.query(
+      `SELECT count(*)::int AS total
+         FROM recommendation_requests
+        WHERE user_id = $1`,
+      [userId]
+    );
+
+    return Number(result.rows[0]?.total ?? 0);
+  },
+
   async createItems(items: CreateRecommendationItemInput[]): Promise<RecommendationItem[]> {
     const createdItems: RecommendationItem[] = [];
 
@@ -139,6 +190,18 @@ export const recommendationRepository = {
     return mapSavedCourse(result.rows[0]);
   },
 
+  async getSavedCourse(userId: number, requestId: number): Promise<SavedCourse | null> {
+    const result = await db.query(
+      `SELECT *
+         FROM saved_courses
+        WHERE user_id = $1
+          AND request_id = $2`,
+      [userId, requestId]
+    );
+
+    return result.rowCount ? mapSavedCourse(result.rows[0]) : null;
+  },
+
   async removeSavedCourse(userId: number, requestId: number): Promise<boolean> {
     const result = await db.query(
       `DELETE FROM saved_courses
@@ -150,15 +213,33 @@ export const recommendationRepository = {
     return (result.rowCount ?? 0) > 0;
   },
 
-  async listSavedCourses(userId: number): Promise<SavedCourse[]> {
+  async listSavedCourses(
+    userId: number,
+    params: { page?: number; pageSize?: number } = {}
+  ): Promise<SavedCourse[]> {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.max(1, Math.min(params.pageSize ?? 10, 50));
     const result = await db.query(
       `SELECT *
          FROM saved_courses
         WHERE user_id = $1
-        ORDER BY saved_at DESC`,
-      [userId]
+        ORDER BY saved_at DESC
+        LIMIT $2
+       OFFSET $3`,
+      [userId, pageSize, (page - 1) * pageSize]
     );
 
     return result.rows.map(mapSavedCourse);
+  },
+
+  async countSavedCourses(userId: number): Promise<number> {
+    const result = await db.query(
+      `SELECT count(*)::int AS total
+         FROM saved_courses
+        WHERE user_id = $1`,
+      [userId]
+    );
+
+    return Number(result.rows[0]?.total ?? 0);
   }
 };

@@ -16,6 +16,13 @@ export interface SeoulOpenApiPage<T> {
   rows: T[];
 }
 
+export interface SeoulCityDataPayload {
+  AREA_NM?: string;
+  LIVE_PPLTN_STTS?: Array<Record<string, unknown>>;
+  ROAD_TRAFFIC_STTS?: Record<string, unknown> | Array<Record<string, unknown>>;
+  WEATHER_STTS?: Array<Record<string, unknown>> | Record<string, unknown>;
+}
+
 const SEOUL_OPEN_API_BASE_URL = "http://openapi.seoul.go.kr:8088";
 const FOOD_HYGIENE_LIST_URL =
   "https://data.seoul.go.kr/dataList/datasetView.do?currentPageNo=&infId=OA-13663&searchKey=&searchValue=&serviceKind=1&srvType=F";
@@ -130,6 +137,9 @@ const parseCsv = (content: string): Record<string, string>[] => {
 const buildSeoulOpenApiUrl = (serviceName: string, startIndex: number, endIndex: number): string =>
   `${SEOUL_OPEN_API_BASE_URL}/${env.SEOUL_OPEN_API_KEY}/json/${serviceName}/${startIndex}/${endIndex}/`;
 
+const buildSeoulCityDataUrl = (areaName: string): string =>
+  `${SEOUL_OPEN_API_BASE_URL}/${env.SEOUL_OPEN_API_KEY}/json/citydata/1/5/${encodeURIComponent(areaName)}`;
+
 export const seoulOpenDataClient = {
   async fetchSeoulOpenApiPage<T>(
     serviceName: string,
@@ -175,6 +185,23 @@ export const seoulOpenDataClient = {
     }
 
     return rows;
+  },
+
+  async fetchCityData(areaName: string): Promise<SeoulCityDataPayload> {
+    if (!env.SEOUL_OPEN_API_KEY) {
+      throw new Error("SEOUL_OPEN_API_KEY is required");
+    }
+
+    const payload = await fetchJson<{
+      CITYDATA?: SeoulCityDataPayload;
+      RESULT?: SeoulOpenApiResult;
+    }>(buildSeoulCityDataUrl(areaName));
+
+    if (payload.CITYDATA) {
+      return payload.CITYDATA;
+    }
+
+    throw new Error(`citydata: ${payload.RESULT?.MESSAGE ?? "Unknown response"}`);
   },
 
   async fetchLatestFoodHygieneRows(): Promise<{

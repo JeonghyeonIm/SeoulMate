@@ -30,6 +30,27 @@ export interface SignupResponseBody {
   createdAt: string;
 }
 
+export interface LoginRequestBody {
+  email: string;
+  password: string;
+}
+
+export interface RefreshRequestBody {
+  refreshToken: string;
+}
+
+export interface AuthResponseBody {
+  user: {
+    id: number;
+    email: string;
+    nickname: string;
+  };
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+}
+
 export interface ValidatedSignupPayload {
   email: string;
   password?: string;

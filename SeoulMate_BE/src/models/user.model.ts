@@ -8,6 +8,10 @@ export interface UserProfile {
   updatedAt: string;
 }
 
+export interface UserAuthRecord extends UserProfile {
+  passwordHash: string;
+}
+
 export interface CreateUserProfileInput {
   email: string;
   passwordHash: string;
@@ -19,4 +23,9 @@ export interface CreateUserProfileInput {
 export interface UpdateUserPreferencesInput {
   preferredRegion?: string | null;
   preferredCategory?: string | null;
+}
+
+export interface ListUsersParams {
+  page?: number;
+  pageSize?: number;
 }

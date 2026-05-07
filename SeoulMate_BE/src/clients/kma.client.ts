@@ -104,7 +104,7 @@ export const kmaClient = {
   // ── 단기예보 ───────────────────────────────────────────────────────────────
 
   fetchShortTerm: (nx: number, ny: number, baseDate: string, baseTime: string) =>
-    fetchKma<Record<string, string>>("VilageFcstInfoService02/getVilageFcst", {
+    fetchKma<Record<string, string>>("VilageFcstInfoService_2.0/getVilageFcst", {
       pageNo: "1",
       numOfRows: "1000",
       nx: String(nx),
@@ -116,7 +116,7 @@ export const kmaClient = {
   // ── 초단기예보 ─────────────────────────────────────────────────────────────
 
   fetchUltraShortTerm: (nx: number, ny: number, baseDate: string, baseTime: string) =>
-    fetchKma<Record<string, string>>("VilageFcstInfoService02/getUltraSrtFcst", {
+    fetchKma<Record<string, string>>("VilageFcstInfoService_2.0/getUltraSrtFcst", {
       pageNo: "1",
       numOfRows: "60",
       nx: String(nx),
@@ -128,7 +128,7 @@ export const kmaClient = {
   // ── 초단기실황 ─────────────────────────────────────────────────────────────
 
   fetchUltraShortNcst: (nx: number, ny: number, baseDate: string, baseTime: string) =>
-    fetchKma<Record<string, string>>("VilageFcstInfoService02/getUltraSrtNcst", {
+    fetchKma<Record<string, string>>("VilageFcstInfoService_2.0/getUltraSrtNcst", {
       pageNo: "1",
       numOfRows: "10",
       nx: String(nx),

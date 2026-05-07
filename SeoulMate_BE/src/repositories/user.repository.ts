@@ -1,7 +1,9 @@
 import { db } from "../config/db";
 import type {
   CreateUserProfileInput,
+  ListUsersParams,
   UpdateUserPreferencesInput,
+  UserAuthRecord,
   UserProfile
 } from "../models/user.model";
 
@@ -13,6 +15,11 @@ const mapUserProfile = (row: Record<string, unknown>): UserProfile => ({
   preferredCategory: (row.preferred_category as string | null) ?? null,
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at)
+});
+
+const mapUserAuthRecord = (row: Record<string, unknown>): UserAuthRecord => ({
+  ...mapUserProfile(row),
+  passwordHash: String(row.password_hash)
 });
 
 export const userRepository = {
@@ -33,6 +40,28 @@ export const userRepository = {
          FROM users
         WHERE email = $1`,
       [email]
+    );
+
+    return result.rowCount ? mapUserProfile(result.rows[0]) : null;
+  },
+
+  async getAuthByEmail(email: string): Promise<UserAuthRecord | null> {
+    const result = await db.query(
+      `SELECT id, email, password_hash, nickname, preferred_region, preferred_category, created_at, updated_at
+         FROM users
+        WHERE email = $1`,
+      [email]
+    );
+
+    return result.rowCount ? mapUserAuthRecord(result.rows[0]) : null;
+  },
+
+  async getByNickname(nickname: string): Promise<UserProfile | null> {
+    const result = await db.query(
+      `SELECT id, email, nickname, preferred_region, preferred_category, created_at, updated_at
+         FROM users
+        WHERE nickname = $1`,
+      [nickname]
     );
 
     return result.rowCount ? mapUserProfile(result.rows[0]) : null;
@@ -70,5 +99,25 @@ export const userRepository = {
     );
 
     return result.rowCount ? mapUserProfile(result.rows[0]) : null;
+  },
+
+  async listUsers(params: ListUsersParams): Promise<UserProfile[]> {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.max(1, Math.min(params.pageSize ?? 20, 100));
+    const result = await db.query(
+      `SELECT id, email, nickname, preferred_region, preferred_category, created_at, updated_at
+         FROM users
+        ORDER BY created_at DESC, id DESC
+        LIMIT $1
+       OFFSET $2`,
+      [pageSize, (page - 1) * pageSize]
+    );
+
+    return result.rows.map(mapUserProfile);
+  },
+
+  async countUsers(): Promise<number> {
+    const result = await db.query(`SELECT count(*)::int AS total FROM users`);
+    return Number(result.rows[0]?.total ?? 0);
   }
 };
