@@ -5,6 +5,7 @@ import {
   getShortTermForecast,
   getUltraShortTermForecast
 } from "../../services/weather.service";
+import logger from "../../utils/logger";
 import type {
   CandidatePlace,
   RecommendationContextData,
@@ -66,7 +67,10 @@ const firstRecord = (value: unknown): Record<string, unknown> | undefined => {
   return undefined;
 };
 
-const readString = (record: Record<string, unknown> | undefined, keys: string[]): string | undefined => {
+const readString = (
+  record: Record<string, unknown> | undefined,
+  keys: string[]
+): string | undefined => {
   for (const key of keys) {
     const value = record?.[key];
     if (value !== null && value !== undefined && String(value).trim()) {
@@ -77,7 +81,10 @@ const readString = (record: Record<string, unknown> | undefined, keys: string[])
   return undefined;
 };
 
-const readNumber = (record: Record<string, unknown> | undefined, keys: string[]): number | undefined => {
+const readNumber = (
+  record: Record<string, unknown> | undefined,
+  keys: string[]
+): number | undefined => {
   for (const key of keys) {
     const value = record?.[key];
     if (value !== null && value !== undefined && String(value).trim()) {
@@ -126,7 +133,9 @@ const resolveCityDataAreaName = (region?: string, places: CandidatePlace[] = [])
   return placeRegion ? resolveCityDataAreaName(placeRegion) : "명동 관광특구";
 };
 
-const getReferenceCoordinate = (places: CandidatePlace[]): { latitude: number; longitude: number } => {
+const getReferenceCoordinate = (
+  places: CandidatePlace[]
+): { latitude: number; longitude: number } => {
   const place = places.find(
     (item) => typeof item.latitude === "number" && typeof item.longitude === "number"
   );
@@ -138,15 +147,18 @@ const getReferenceCoordinate = (places: CandidatePlace[]): { latitude: number; l
 
 const chooseWeatherSource = (dateTime?: string): WeatherSource => {
   if (!dateTime) {
+    logger.info({ dateTime, diffHours: null }, "[fetchContextData] weather source 분기 계산");
     return "cityData";
   }
 
   const target = new Date(dateTime);
   if (Number.isNaN(target.getTime())) {
+    logger.info({ dateTime, diffHours: null }, "[fetchContextData] weather source 분기 계산");
     return "cityData";
   }
 
   const diffHours = (target.getTime() - Date.now()) / (60 * 60 * 1000);
+  logger.info({ dateTime, diffHours }, "[fetchContextData] weather source 분기 계산");
 
   if (diffHours <= 0.5) {
     return "cityData";
@@ -306,6 +318,7 @@ const buildPlaceDistances = (
 export const fetchContextDataNode = async (
   state: SeoulMateGraphState
 ): Promise<SeoulMateGraphUpdate> => {
+  console.log("=== fetchContextData 진입 ===", state.parsedRequest?.dateTime);
   const errors: string[] = [];
   const candidatePlaces = state.candidatePlaces ?? [];
   const areaName = resolveCityDataAreaName(state.parsedRequest?.region, candidatePlaces);
@@ -325,18 +338,25 @@ export const fetchContextDataNode = async (
 
   try {
     if (weatherSource === "cityData") {
+      logger.info("[fetchContextData] weatherSource: cityData");
       weather = summarizeCityDataWeather(cityData, state.parsedRequest?.dateTime);
     } else if (weatherSource === "ultraShortTerm") {
+      logger.info("[fetchContextData] weatherSource: ultraShortTerm");
       weather = summarizeUltraShortWeather(
-        await getUltraShortTermForecast(referenceCoordinate.latitude, referenceCoordinate.longitude),
+        await getUltraShortTermForecast(
+          referenceCoordinate.latitude,
+          referenceCoordinate.longitude
+        ),
         state.parsedRequest?.dateTime
       );
     } else if (weatherSource === "shortTerm") {
+      logger.info("[fetchContextData] weatherSource: shortTerm");
       weather = summarizeShortWeather(
         await getShortTermForecast(referenceCoordinate.latitude, referenceCoordinate.longitude),
         state.parsedRequest?.dateTime
       );
     } else if (weatherSource === "mediumTerm") {
+      logger.info("[fetchContextData] weatherSource: mediumTerm");
       const medium = await getMediumTermForecast(state.parsedRequest?.dateTime);
       weather = {
         source: "mediumTerm",
@@ -349,6 +369,7 @@ export const fetchContextDataNode = async (
             : undefined
       };
     } else {
+      logger.info("[fetchContextData] weatherSource: unavailable");
       weather = {
         source: "unavailable",
         targetDateTime: state.parsedRequest?.dateTime,
