@@ -16,6 +16,12 @@ export interface SeoulOpenApiPage<T> {
   rows: T[];
 }
 
+export interface LivingPopulationFileInfo {
+  seq: string;
+  fileName: string;
+  yyyymm: string;
+}
+
 export interface SeoulCityDataPayload {
   AREA_NM?: string;
   LIVE_PPLTN_STTS?: Array<Record<string, unknown>>;
@@ -26,7 +32,9 @@ export interface SeoulCityDataPayload {
 const SEOUL_OPEN_API_BASE_URL = "http://openapi.seoul.go.kr:8088";
 const FOOD_HYGIENE_LIST_URL =
   "https://data.seoul.go.kr/dataList/datasetView.do?currentPageNo=&infId=OA-13663&searchKey=&searchValue=&serviceKind=1&srvType=F";
-const FOOD_HYGIENE_DOWNLOAD_URL =
+const LIVING_POPULATION_LIST_URL =
+  "https://data.seoul.go.kr/dataList/datasetView.do?currentPageNo=&infId=OA-14991&searchKey=&searchValue=&serviceKind=1&srvType=F";
+const SEOUL_DATA_FILE_DOWNLOAD_URL =
   "https://datafile.seoul.go.kr/bigfile/iot/inf/nio_download.do?&useCache=false";
 
 const htmlEntityMap: Record<string, string> = {
@@ -71,7 +79,7 @@ const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
   return (await response.json()) as T;
 };
 
-const parseCsv = (content: string): Record<string, string>[] => {
+export const parseCsv = (content: string): Record<string, string>[] => {
   const rows: string[][] = [];
   let currentRow: string[] = [];
   let currentValue = "";
@@ -222,7 +230,7 @@ export const seoulOpenDataClient = {
       infSeq: "3"
     });
 
-    const csvResponse = await fetch(FOOD_HYGIENE_DOWNLOAD_URL, {
+    const csvResponse = await fetch(SEOUL_DATA_FILE_DOWNLOAD_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
@@ -240,5 +248,40 @@ export const seoulOpenDataClient = {
       fileName,
       rows: parseCsv(csvContent)
     };
+  },
+
+  async fetchLivingPopulationFileList(): Promise<LivingPopulationFileInfo[]> {
+    const pageHtml = await fetchText(LIVING_POPULATION_LIST_URL);
+
+    // <a href="javascript:downloadFile('2604');" title="LOCAL_PEOPLE_DONG_202604.zip">
+    const regex = /downloadFile\('(\d+)'\)[^>]*title="(LOCAL_PEOPLE_DONG_(\d{6})\.zip)"/g;
+    const files: LivingPopulationFileInfo[] = [];
+
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(pageHtml)) !== null) {
+      files.push({ seq: match[1], fileName: match[2], yyyymm: match[3] });
+    }
+
+    return files.sort((a, b) => b.yyyymm.localeCompare(a.yyyymm));
+  },
+
+  async fetchLivingPopulationZip(seq: string): Promise<Buffer> {
+    const formData = new URLSearchParams({
+      infId: "OA-14991",
+      seq,
+      infSeq: "3"
+    });
+
+    const response = await fetch(SEOUL_DATA_FILE_DOWNLOAD_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData.toString()
+    });
+
+    if (!response.ok) {
+      throw new Error(`생활인구 ZIP 다운로드 실패 (${response.status}) seq=${seq}`);
+    }
+
+    return Buffer.from(await response.arrayBuffer());
   }
 };
