@@ -10,17 +10,13 @@ const parsePositiveInt = (value: unknown, fallback: number): number => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 };
 
-const splitCsv = (value: string | null): string[] =>
-  value
-    ?.split(",")
-    .map((item) => item.trim())
-    .filter(Boolean) ?? [];
-
 const toUserResponse = (user: UserProfile) => ({
   id: String(user.id),
   email: user.email,
   nickname: user.nickname,
-  vibes: splitCsv(user.preferredCategory),
+  vibes: user.vibes,
+  budget: user.budget,
+  role: user.role,
   createdAt: user.createdAt
 });
 
@@ -34,6 +30,19 @@ const readStringArray = (value: unknown): string[] | undefined => {
   }
 
   return value.map((item) => item.trim()).filter(Boolean);
+};
+
+const readPositiveBudget = (value: unknown): number | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new ApiError(400, "budget must be a positive number");
+  }
+
+  return Math.round(parsed);
 };
 
 export const getMe = async (
@@ -84,10 +93,7 @@ export const listUsers = async (
 ): Promise<void> => {
   try {
     const page = parsePositiveInt(req.query.page, 1);
-    const pageSize = Math.min(
-      parsePositiveInt(req.query.page_size ?? req.query.pageSize, 20),
-      100
-    );
+    const pageSize = Math.min(parsePositiveInt(req.query.page_size ?? req.query.pageSize, 20), 100);
     const [users, total] = await Promise.all([
       userService.listUsers({ page, pageSize }),
       userService.countUsers()
@@ -116,26 +122,27 @@ export const updateMyPreferences = async (
 
     const vibes = readStringArray(req.body.vibes);
     const regions = readStringArray(req.body.regions);
+    const budget = readPositiveBudget(req.body.budget);
     const preferredRegion =
-      regions?.join(",") ??
-      (typeof req.body.preferredRegion === "string" ? req.body.preferredRegion.trim() : undefined);
-    const preferredCategory =
-      vibes?.join(",") ??
-      (typeof req.body.preferredCategory === "string"
-        ? req.body.preferredCategory.trim()
-        : undefined);
+      regions !== undefined
+        ? regions.join(",") || null
+        : typeof req.body.preferredRegion === "string"
+          ? req.body.preferredRegion.trim() || null
+          : undefined;
 
-    if (!preferredRegion && !preferredCategory && req.body.budget === undefined) {
+    if (vibes === undefined && preferredRegion === undefined && budget === undefined) {
       throw new ApiError(400, "vibes, regions, or budget is required");
     }
 
     const updated = await userService.updatePreferences(req.user.id, {
-      preferredRegion: preferredRegion || undefined,
-      preferredCategory: preferredCategory || undefined
+      preferredRegion: preferredRegion ?? undefined,
+      vibes,
+      budget
     });
 
     res.status(200).json({
-      vibes: splitCsv(updated.preferredCategory),
+      vibes: updated.vibes,
+      budget: updated.budget,
       updatedAt: updated.updatedAt
     });
   } catch (error) {

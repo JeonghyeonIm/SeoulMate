@@ -53,7 +53,7 @@ export async function signup(payload: ValidatedSignupPayload): Promise<SignupRes
     email: payload.email,
     passwordHash: passwordHash ?? `${payload.provider}:oauth`,
     nickname: payload.nickname,
-    preferredCategory: payload.preferences?.vibes?.join(",") ?? null
+    vibes: payload.preferences?.vibes ?? []
   });
 
   return {
