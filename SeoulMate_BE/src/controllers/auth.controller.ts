@@ -7,12 +7,12 @@ import {
   handleGoogleCallback,
   handleKakaoCallback,
   login,
+  logout,
   refreshAuth,
   signup
 } from "../services/auth.service";
 import type { AuthResponseBody, LoginRequestBody, RefreshRequestBody } from "../types/auth.types";
 import { ApiError } from "../utils/ApiError";
-import { verifyToken } from "../utils/jwt";
 import { validateSignupRequest } from "../validators/user.validator";
 
 // ── 이메일 회원가입 ────────────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ export async function logoutController(
     if (typeof req.body.refreshToken !== "string") {
       throw new ApiError(400, "refreshToken이 필요합니다.");
     }
-    verifyToken(req.body.refreshToken, "refresh");
+    await logout(req.body.refreshToken);
     res.status(204).send();
   } catch (error) {
     next(

@@ -10,11 +10,7 @@ interface JwtPayload {
 }
 
 const base64UrlEncode = (value: string | Buffer): string =>
-  Buffer.from(value)
-    .toString("base64")
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+  Buffer.from(value).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 
 const base64UrlDecode = (value: string): string => {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -29,7 +25,9 @@ const timingSafeEqual = (left: string, right: string): boolean => {
   const leftBuffer = Buffer.from(left);
   const rightBuffer = Buffer.from(right);
 
-  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+  return (
+    leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer)
+  );
 };
 
 export const createToken = (
@@ -75,6 +73,9 @@ export const verifyToken = (token: string, expectedType: "access" | "refresh"): 
 
   return parsed as JwtPayload;
 };
+
+export const hashToken = (token: string): string =>
+  crypto.createHash("sha256").update(token).digest("hex");
 
 export const issueAuthTokens = (userId: number) => ({
   accessToken: createToken(userId, "access", env.JWT_ACCESS_EXPIRES_IN_SECONDS),

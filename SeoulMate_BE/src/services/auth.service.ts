@@ -3,10 +3,12 @@ import bcrypt from "bcrypt";
 import { googleOAuthClient } from "../clients/google.oauth.client";
 import { kakaoOAuthClient } from "../clients/kakao.oauth.client";
 import type { UserProfile } from "../models/user.model";
+import { tokenBlacklistRepository } from "../repositories/tokenBlacklist.repository";
 import { userRepository } from "../repositories/user.repository";
 import type { AuthResponseBody, ValidatedSignupPayload } from "../types/auth.types";
 import { ApiError } from "../utils/ApiError";
-import { issueAuthTokens, verifyToken } from "../utils/jwt";
+import { hashToken, issueAuthTokens, verifyToken } from "../utils/jwt";
+import logger from "../utils/logger";
 
 const SALT_ROUNDS = 10;
 
@@ -151,11 +153,26 @@ export async function handleGoogleCallback(code: string): Promise<AuthResponseBo
   }
 }
 
+// ── 로그아웃 ──────────────────────────────────────────────────────────────────
+
+export async function logout(refreshToken: string): Promise<void> {
+  const payload = verifyToken(refreshToken, "refresh");
+  const tokenHash = hashToken(refreshToken);
+  const expiresAt = new Date(payload.exp * 1000);
+  await tokenBlacklistRepository.add(tokenHash, Number(payload.sub), expiresAt);
+}
+
 // ── 토큰 갱신 ─────────────────────────────────────────────────────────────────
 
 export async function refreshAuth(refreshToken: string): Promise<AuthResponseBody> {
   try {
     const payload = verifyToken(refreshToken, "refresh");
+
+    const tokenHash = hashToken(refreshToken);
+    if (await tokenBlacklistRepository.isBlacklisted(tokenHash)) {
+      throw new ApiError(401, "이미 로그아웃된 토큰입니다.");
+    }
+
     const user = await userRepository.getById(Number(payload.sub));
     if (!user) throw new ApiError(401, "존재하지 않는 사용자입니다.");
     return buildAuthResponse(user);
@@ -164,3 +181,20 @@ export async function refreshAuth(refreshToken: string): Promise<AuthResponseBod
     throw new ApiError(401, "유효하지 않은 refresh token입니다.");
   }
 }
+
+// ── 만료 블랙리스트 정리 스케줄러 ────────────────────────────────────────────
+
+const BLACKLIST_CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 1시간
+
+export const scheduleTokenBlacklistCleanup = (): void => {
+  setInterval(async () => {
+    try {
+      const deleted = await tokenBlacklistRepository.deleteExpired();
+      if (deleted > 0) {
+        logger.info({ deleted }, "만료된 refresh token 블랙리스트 정리 완료");
+      }
+    } catch (error) {
+      logger.error({ err: error }, "refresh token 블랙리스트 정리 실패");
+    }
+  }, BLACKLIST_CLEANUP_INTERVAL_MS);
+};
