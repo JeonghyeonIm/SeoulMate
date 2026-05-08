@@ -10,7 +10,8 @@ interface ListUsersInput {
 
 interface UpdatePreferencesInput {
   preferredRegion?: string | null;
-  preferredCategory?: string | null;
+  vibes?: string[];
+  budget?: number;
 }
 
 export const userService = {

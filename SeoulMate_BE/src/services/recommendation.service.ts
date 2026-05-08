@@ -292,16 +292,28 @@ const estimateStayDuration = (item: RecommendationItem): number => {
   return 60;
 };
 
+const toCongestion = (value: string | null): CourseResponse["congestion"] => {
+  if (value === "low" || value === "medium" || value === "high") {
+    return value;
+  }
+  return "unknown";
+};
+
 const toCourseResponseFromDetail = (detail: CourseDetail): CourseResponse => {
-  const totalCost = detail.items.reduce((sum, item) => sum + (item.estimatedCost ?? 0), 0);
-  const duration = detail.items.reduce(
-    (sum, item) => sum + estimateStayDuration(item) + (item.travelMinutes ?? 0),
-    0
-  );
-  const title = `${detail.request.preferredRegion ?? "서울"} ${
-    detail.request.preferredCategory ?? "데이트"
-  } 코스`;
-  const description = detail.items.find((item) => item.reason)?.reason ?? "추천 코스입니다.";
+  const totalCost =
+    detail.request.courseEstimatedBudget ??
+    detail.items.reduce((sum, item) => sum + (item.estimatedCost ?? 0), 0);
+  const duration =
+    detail.request.courseDurationMinutes ??
+    detail.items.reduce(
+      (sum, item) => sum + estimateStayDuration(item) + (item.travelMinutes ?? 0),
+      0
+    );
+  const title = detail.request.courseTitle ?? `${detail.request.preferredRegion ?? "서울"} 코스`;
+  const description =
+    detail.request.courseDescription ??
+    detail.items.find((item) => item.reason)?.reason ??
+    "추천 코스입니다.";
 
   return {
     id: `crs_${detail.request.id}`,
@@ -309,7 +321,7 @@ const toCourseResponseFromDetail = (detail: CourseDetail): CourseResponse => {
     description,
     totalCost,
     duration,
-    congestion: "unknown",
+    congestion: toCongestion(detail.request.courseCongestion),
     places: detail.items.map((item, index) => {
       const cost = item.estimatedCost ?? 0;
       return {
@@ -348,7 +360,14 @@ export const recommendationService = {
         budget: state.parsedRequest?.budget ?? null,
         companion: state.parsedRequest?.purpose ?? null,
         transportMode: "walking",
-        status: "pending"
+        status: "pending",
+        courseTitle: state.course?.title ?? null,
+        courseDurationMinutes: state.course ? courseDuration(state.course.places) : null,
+        courseCongestion: state.course
+          ? crowdToCongestion(state.contextData?.cityData?.crowdLevel)
+          : null,
+        courseDescription: state.aiExplanation?.summary ?? state.aiExplanation?.reason ?? null,
+        courseEstimatedBudget: state.course?.estimatedBudget ?? null
       });
       requestId = request.id;
 

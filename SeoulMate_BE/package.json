@@ -11,6 +11,7 @@
     "sync:public-data": "npm run build && node dist/jobs/runPublicDataSync.js",
     "convert:coordinates": "npm run build && node dist/jobs/runCoordinateConversion.js",
     "sync:weather": "npm run build && node dist/jobs/runWeatherSync.js",
+    "sync:living-population": "npm run build && node dist/jobs/runLivingPopulationSync.js",
     "prepare": "node scripts/setupHusky.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -36,6 +37,7 @@
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "proj4": "^2.20.8",
+    "unzipper": "^0.12.3",
     "uuid": "^11.1.1"
   },
   "devDependencies": {
@@ -46,6 +48,7 @@
     "@types/node": "^24.10.1",
     "@types/pg": "^8.15.6",
     "@types/proj4": "^2.5.6",
+    "@types/unzipper": "^0.10.11",
     "@types/uuid": "^10.0.0",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",

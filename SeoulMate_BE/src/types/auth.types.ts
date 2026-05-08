@@ -1,4 +1,3 @@
-// src/types/auth.types.ts
 export type AuthProvider = "local" | "kakao" | "google";
 
 export type Vibe =
@@ -17,17 +16,32 @@ export interface SignupPreferences {
 
 export interface SignupRequestBody {
   email: string;
-  password?: string;
+  password: string;
   nickname: string;
-  provider: AuthProvider;
   preferences?: SignupPreferences | null;
 }
 
-export interface SignupResponseBody {
-  id: string;
+export interface LoginRequestBody {
+  email: string;
+  password: string;
+}
+
+export interface RefreshRequestBody {
+  refreshToken: string;
+}
+
+export interface AuthUser {
+  id: number;
   email: string;
   nickname: string;
-  createdAt: string;
+}
+
+export interface AuthResponseBody {
+  user: AuthUser;
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
 }
 
 export interface LoginRequestBody {
@@ -53,12 +67,12 @@ export interface AuthResponseBody {
 
 export interface ValidatedSignupPayload {
   email: string;
-  password?: string;
+  password: string;
   nickname: string;
-  provider: AuthProvider;
   preferences: SignupPreferences | null;
 }
 
+// 아래는 하위 호환용 — inMemoryDatabase 제거 이후 미사용
 export interface UserRecord {
   id: string;
   email: string;

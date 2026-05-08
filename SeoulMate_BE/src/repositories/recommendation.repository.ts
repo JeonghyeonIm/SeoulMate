@@ -17,6 +17,13 @@ const mapRecommendationRequest = (row: Record<string, unknown>): RecommendationR
   companion: (row.companion as string | null) ?? null,
   transportMode: (row.transport_mode as string | null) ?? null,
   status: String(row.status) as RecommendationRequest["status"],
+  courseTitle: (row.course_title as string | null) ?? null,
+  courseDurationMinutes:
+    row.course_duration_minutes === null ? null : Number(row.course_duration_minutes),
+  courseCongestion: (row.course_congestion as string | null) ?? null,
+  courseDescription: (row.course_description as string | null) ?? null,
+  courseEstimatedBudget:
+    row.course_estimated_budget === null ? null : Number(row.course_estimated_budget),
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at)
 });
@@ -53,9 +60,14 @@ export const recommendationRepository = {
          budget,
          companion,
          transport_mode,
-         status
+         status,
+         course_title,
+         course_duration_minutes,
+         course_congestion,
+         course_description,
+         course_estimated_budget
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         input.userId,
@@ -65,7 +77,12 @@ export const recommendationRepository = {
         input.budget ?? null,
         input.companion ?? null,
         input.transportMode ?? null,
-        input.status ?? "pending"
+        input.status ?? "pending",
+        input.courseTitle ?? null,
+        input.courseDurationMinutes ?? null,
+        input.courseCongestion ?? null,
+        input.courseDescription ?? null,
+        input.courseEstimatedBudget ?? null
       ]
     );
 
