@@ -8,7 +8,7 @@ import type {
 } from "../models/user.model";
 
 const COMMON_COLUMNS = `
-  id, email, nickname, vibes, budget, role,
+  id, email, nickname, vibes, budget, role, provider, oauth_id,
   preferred_region, created_at, updated_at
 `;
 
@@ -19,6 +19,8 @@ const mapUserProfile = (row: Record<string, unknown>): UserProfile => ({
   vibes: Array.isArray(row.vibes) ? (row.vibes as string[]) : [],
   budget: row.budget === null || row.budget === undefined ? null : Number(row.budget),
   role: String(row.role ?? "user"),
+  provider: String(row.provider ?? "local"),
+  oauthId: (row.oauth_id as string | null) ?? null,
   preferredRegion: (row.preferred_region as string | null) ?? null,
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at)
@@ -26,7 +28,7 @@ const mapUserProfile = (row: Record<string, unknown>): UserProfile => ({
 
 const mapUserAuthRecord = (row: Record<string, unknown>): UserAuthRecord => ({
   ...mapUserProfile(row),
-  passwordHash: String(row.password_hash)
+  passwordHash: row.password_hash ? String(row.password_hash) : null
 });
 
 export const userRepository = {
@@ -55,18 +57,43 @@ export const userRepository = {
     return result.rowCount ? mapUserProfile(result.rows[0]) : null;
   },
 
+  async findByOAuth(provider: string, oauthId: string): Promise<UserProfile | null> {
+    const result = await db.query(
+      `SELECT ${COMMON_COLUMNS} FROM users WHERE provider = $1 AND oauth_id = $2`,
+      [provider, oauthId]
+    );
+    return result.rowCount ? mapUserProfile(result.rows[0]) : null;
+  },
+
+  async findAvailableNickname(base: string): Promise<string> {
+    const safe = base.replace(/[^가-힣a-zA-Z0-9_]/g, "").slice(0, 8) || "사용자";
+
+    const existing = await this.getByNickname(safe);
+    if (!existing) return safe;
+
+    for (let i = 0; i < 10; i++) {
+      const suffix = Math.random().toString(36).slice(2, 6);
+      const candidate = `${safe}_${suffix}`.slice(0, 10);
+      if (!(await this.getByNickname(candidate))) return candidate;
+    }
+
+    return `user_${Date.now().toString(36).slice(-6)}`;
+  },
+
   async createUser(input: CreateUserProfileInput): Promise<UserProfile> {
     const result = await db.query(
-      `INSERT INTO users (email, password_hash, nickname, vibes, budget, preferred_region)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO users (email, password_hash, nickname, vibes, budget, preferred_region, provider, oauth_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING ${COMMON_COLUMNS}`,
       [
         input.email,
-        input.passwordHash,
+        input.passwordHash ?? null,
         input.nickname,
         input.vibes ?? [],
         input.budget ?? null,
-        input.preferredRegion ?? null
+        input.preferredRegion ?? null,
+        input.provider ?? "local",
+        input.oauthId ?? null
       ]
     );
     return mapUserProfile(result.rows[0]);
