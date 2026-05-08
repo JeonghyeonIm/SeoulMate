@@ -26,7 +26,7 @@ const readStringArray = (value: unknown): string[] | undefined => {
   }
 
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new ApiError(400, "vibes and regions must be string arrays");
+    throw new ApiError(400, "vibes와 regions는 문자열 배열이어야 합니다.");
   }
 
   return value.map((item) => item.trim()).filter(Boolean);
@@ -39,7 +39,7 @@ const readPositiveBudget = (value: unknown): number | undefined => {
 
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new ApiError(400, "budget must be a positive number");
+    throw new ApiError(400, "budget 값은 양수여야 합니다.");
   }
 
   return Math.round(parsed);
@@ -52,7 +52,7 @@ export const getMe = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new ApiError(401, "Authentication required");
+      throw new ApiError(401, "로그인이 필요합니다.");
     }
 
     const [user, savedCoursesCount] = await Promise.all([
@@ -77,7 +77,7 @@ export const getUser = async (
   try {
     const userId = parsePositiveInt(req.params.userId, 0);
     if (!userId) {
-      throw new ApiError(400, "userId must be a positive integer");
+      throw new ApiError(400, "userId 값은 양의 정수여야 합니다.");
     }
 
     res.status(200).json(toUserResponse(await userService.getUser(userId)));
@@ -117,7 +117,7 @@ export const updateMyPreferences = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new ApiError(401, "Authentication required");
+      throw new ApiError(401, "로그인이 필요합니다.");
     }
 
     const vibes = readStringArray(req.body.vibes);
@@ -131,7 +131,7 @@ export const updateMyPreferences = async (
           : undefined;
 
     if (vibes === undefined && preferredRegion === undefined && budget === undefined) {
-      throw new ApiError(400, "vibes, regions, or budget is required");
+      throw new ApiError(400, "vibes, regions, budget 중 하나 이상이 필요합니다.");
     }
 
     const updated = await userService.updatePreferences(req.user.id, {

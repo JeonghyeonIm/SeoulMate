@@ -45,7 +45,8 @@ const compactString = (value: string | null | undefined): string | undefined => 
 
 const cleanParsedRequest = (value: ParsedRequestFromAi): ParsedRecommendationRequest => ({
   region: compactString(value.region),
-  budget: typeof value.budget === "number" && value.budget > 0 ? Math.round(value.budget) : undefined,
+  budget:
+    typeof value.budget === "number" && value.budget > 0 ? Math.round(value.budget) : undefined,
   dateTime: compactString(value.dateTime),
   durationHours:
     typeof value.durationHours === "number" && value.durationHours > 0
@@ -222,7 +223,9 @@ const parsePreferredCategories = (input: string): string[] => {
     ["야경", "야경명소"]
   ];
 
-  const parsed = categories.filter(([keyword]) => input.includes(keyword)).map(([, value]) => value);
+  const parsed = categories
+    .filter(([keyword]) => input.includes(keyword))
+    .map(([, value]) => value);
 
   if ((input.includes("비") && input.includes("안 맞")) || input.includes("실내")) {
     parsed.push("카페", "문화공간");
@@ -261,13 +264,13 @@ export const parseUserRequestNode = async (
 ): Promise<SeoulMateGraphUpdate> => {
   const fallback = parseHeuristically(state.rawInput);
   const preset = state.parsedRequest;
+  const hasPresetDateTime = Boolean(preset?.dateTime);
 
   try {
     const parsed = await openaiClient.createJsonResponse<ParsedRequestFromAi>({
       schemaName: "seoulmate_recommendation_request",
       schema: requestSchema,
-      instructions:
-        `사용자 입력을 서울 데이트 코스 추천 조건으로 구조화하세요. 장소를 새로 만들지 말고 조건만 추출하세요. 오늘 기준 날짜는 ${getCurrentKstDateLabel()} KST입니다. dateTime은 날짜/시간 단서가 있을 때 이 기준 날짜로 ISO-8601 형식에 가깝게 반환하세요.`,
+      instructions: `사용자 입력을 서울 데이트 코스 추천 조건으로 구조화하세요. 장소를 새로 만들지 말고 조건만 추출하세요. 오늘 기준 날짜는 ${getCurrentKstDateLabel()} KST입니다. dateTime은 날짜/시간 단서가 있을 때 이 기준 날짜로 ISO-8601 형식에 가깝게 반환하세요.`,
       input: state.rawInput
     });
     const cleaned = cleanParsedRequest(parsed);
@@ -277,7 +280,7 @@ export const parseUserRequestNode = async (
       ...preset
     };
 
-    if (fallback.dateTime && hasRelativeDateExpression(state.rawInput)) {
+    if (!hasPresetDateTime && fallback.dateTime && hasRelativeDateExpression(state.rawInput)) {
       parsedRequest.dateTime = fallback.dateTime;
     }
 

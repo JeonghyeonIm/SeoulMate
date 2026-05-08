@@ -51,6 +51,8 @@ export type WeatherSource =
   | "mediumTerm"
   | "unavailable";
 
+export type CongestionLevel = "low" | "medium" | "high" | "unknown";
+
 export interface RecommendationContextData {
   cityData?: {
     areaName: string;
@@ -73,6 +75,15 @@ export interface RecommendationContextData {
     isFallback?: boolean;
   };
   placeDistances?: Record<number, PlaceDistanceContext>;
+  livingPopulation?: {
+    source: "livingPopulation";
+    guCode: string;
+    districtName: string;
+    dayOfWeek: number;
+    hourCode: number;
+    avgPopulation?: number;
+    congestion: CongestionLevel;
+  };
 }
 
 export interface ScoredRecommendationPlace {
@@ -127,6 +138,7 @@ export interface FinalRecommendationResult {
   context?: RecommendationContextData;
   validation?: RecommendationValidation;
   riskNotices: string[];
+  warnings: string[];
   candidateCount: number;
 }
 
@@ -141,6 +153,10 @@ export const RecommendationStateAnnotation = Annotation.Root({
   validation: Annotation<RecommendationValidation | undefined>(),
   riskNotices: Annotation<string[] | undefined>(),
   finalRecommendation: Annotation<FinalRecommendationResult | undefined>(),
+  warnings: Annotation<string[]>({
+    reducer: (prev, next) => prev.concat(next),
+    default: () => []
+  }),
   errors: Annotation<string[]>({
     reducer: (prev, next) => prev.concat(next),
     default: () => []

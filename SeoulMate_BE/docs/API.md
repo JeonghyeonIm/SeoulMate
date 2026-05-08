@@ -44,7 +44,8 @@ Authorization: Bearer <access_token>
 
 ```json
 {
-  "message": "Error message"
+  "status": 400,
+  "message": "한글 오류 사유"
 }
 ```
 
@@ -343,13 +344,13 @@ Authorization: Bearer <access_token>
 
 ```json
 {
-  "query": "Recommend a calm date course near the river",
-  "region": "Seongsu",
-  "vibes": ["calm", "romantic"],
+  "query": "오늘 저녁 성수에서 조용한 데이트 코스 추천해줘",
+  "region": "성수",
+  "vibes": ["조용한", "낭만적인"],
   "budget": 40000,
   "duration": "half-day",
   "dateTime": "2026-05-08T18:00:00+09:00",
-  "purpose": "date"
+  "purpose": "데이트"
 }
 ```
 
@@ -357,6 +358,8 @@ Authorization: Bearer <access_token>
   - 레거시 입력 형식으로 `{ "input": "free text request" }` 도 지원합니다
   - 구조화 요청 방식에서는 `region`, `vibes`, `budget`, `duration`이 필요합니다
   - `duration`은 `2h`, `half-day`, `full-day` 중 하나여야 합니다
+  - `dateTime`은 요청 본문에 명시된 값을 query 안의 시간 표현보다 우선 사용합니다
+  - `dateTime`은 현재 시각 이후 10일 이내만 허용합니다
 - 성공 응답: `200 OK`
 - 응답:
 
@@ -365,18 +368,21 @@ Authorization: Bearer <access_token>
   "courses": [
     {
       "id": "crs_12",
-      "title": "Seongsu Date Course",
-      "description": "A calm route with low travel burden.",
+      "title": "성수 조용한 데이트 코스",
+      "description": "이동 부담이 낮은 차분한 코스입니다.",
       "totalCost": 36000,
       "duration": 240,
       "congestion": "medium",
       "weather": {
-        "summary": "Clear"
+        "source": "shortTerm",
+        "rainProbability": 20,
+        "skyStatus": "맑음",
+        "temperature": 18
       },
       "places": [
         {
           "id": "plc_101",
-          "name": "Sample Cafe",
+          "name": "샘플 카페",
           "lat": 37.54,
           "lng": 127.05,
           "order": 1
@@ -384,6 +390,30 @@ Authorization: Bearer <access_token>
       ]
     }
   ]
+}
+```
+
+- 응답 필드:
+  - `courses`: 추천 코스 배열
+  - `courses[].congestion`: 행정동 단위 서울 생활인구 통계 기반 혼잡도. 산출 불가 시 `unknown`
+  - `warnings` (optional): 외부 API 장애 등으로 일부 정보가 누락된 경우에만 포함되는 경고 메시지 배열
+
+예시: 날씨 API timeout 발생 시
+
+```json
+{
+  "courses": [
+    {
+      "id": "crs_12",
+      "title": "성수 조용한 데이트 코스",
+      "description": "날씨 정보 없이 구성한 추천 코스입니다.",
+      "totalCost": 36000,
+      "duration": 240,
+      "congestion": "medium",
+      "places": []
+    }
+  ],
+  "warnings": ["날씨 정보를 가져오는 데 실패하여 날씨 없이 추천을 진행했습니다."]
 }
 ```
 

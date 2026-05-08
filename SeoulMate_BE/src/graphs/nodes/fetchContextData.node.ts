@@ -1,5 +1,6 @@
 import { mapClient } from "../../clients/map.client";
 import { seoulOpenDataClient, type SeoulCityDataPayload } from "../../clients/seoulOpenData.client";
+import { livingPopulationRepository } from "../../repositories/livingPopulation.repository";
 import {
   getMediumTermForecast,
   getShortTermForecast,
@@ -8,6 +9,7 @@ import {
 import logger from "../../utils/logger";
 import type {
   CandidatePlace,
+  CongestionLevel,
   RecommendationContextData,
   SeoulMateGraphState,
   SeoulMateGraphUpdate,
@@ -15,6 +17,8 @@ import type {
 } from "../recommendation.state";
 
 const SEOUL_CITY_HALL = { latitude: 37.5665, longitude: 126.978 };
+const WEATHER_WARNING = "날씨 정보를 가져오는 데 실패하여 날씨 없이 추천을 진행했습니다.";
+const CONGESTION_WARNING = "혼잡도 정보를 가져오는 데 실패하여 혼잡도 없이 추천을 진행했습니다.";
 
 const CITYDATA_AREA_BY_REGION: Record<string, string> = {
   성수: "성수카페거리",
@@ -51,6 +55,52 @@ const CITYDATA_AREA_BY_REGION: Record<string, string> = {
   마포구: "홍대 관광특구",
   용산구: "이태원 관광특구"
 };
+
+const GU_CODE_BY_NAME: Record<string, string> = {
+  종로구: "11110",
+  중구: "11140",
+  용산구: "11170",
+  성동구: "11200",
+  광진구: "11215",
+  동대문구: "11230",
+  중랑구: "11260",
+  성북구: "11290",
+  강북구: "11305",
+  도봉구: "11320",
+  노원구: "11350",
+  은평구: "11380",
+  서대문구: "11410",
+  마포구: "11440",
+  양천구: "11470",
+  강서구: "11500",
+  구로구: "11530",
+  금천구: "11545",
+  영등포구: "11560",
+  동작구: "11590",
+  관악구: "11620",
+  서초구: "11650",
+  강남구: "11680",
+  송파구: "11710",
+  강동구: "11740"
+};
+
+const REGION_GU_KEYWORDS: Array<{ districtName: string; keywords: string[] }> = [
+  { districtName: "성동구", keywords: ["성수", "서울숲", "성동"] },
+  { districtName: "마포구", keywords: ["홍대", "연남", "합정", "망원", "상수", "마포"] },
+  { districtName: "서대문구", keywords: ["신촌", "연희", "서대문"] },
+  { districtName: "강남구", keywords: ["강남", "신사", "압구정", "청담", "역삼", "선릉"] },
+  { districtName: "송파구", keywords: ["잠실", "송파", "석촌", "방이", "송리단길"] },
+  { districtName: "영등포구", keywords: ["여의도", "문래", "영등포"] },
+  { districtName: "용산구", keywords: ["이태원", "한남", "용산", "경리단"] },
+  { districtName: "중구", keywords: ["명동", "을지로", "동대문", "DDP", "청계천"] },
+  {
+    districtName: "종로구",
+    keywords: ["종로", "익선", "북촌", "서촌", "광화문", "혜화", "대학로"]
+  },
+  { districtName: "광진구", keywords: ["건대", "광진", "어린이대공원"] },
+  { districtName: "관악구", keywords: ["샤로수길", "서울대입구", "관악"] },
+  { districtName: "서초구", keywords: ["반포", "서초", "양재"] }
+];
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : "Unknown error";
@@ -143,6 +193,76 @@ const getReferenceCoordinate = (
   return place?.latitude && place.longitude
     ? { latitude: place.latitude, longitude: place.longitude }
     : SEOUL_CITY_HALL;
+};
+
+const normalizeRegionText = (value: string): string => value.toLowerCase().replace(/\s+/g, "");
+
+const resolveDistrictNameFromText = (value?: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = normalizeRegionText(value);
+  const direct = Object.keys(GU_CODE_BY_NAME).find((districtName) =>
+    normalized.includes(normalizeRegionText(districtName))
+  );
+  if (direct) {
+    return direct;
+  }
+
+  return REGION_GU_KEYWORDS.find((entry) =>
+    entry.keywords.some((keyword) => normalized.includes(normalizeRegionText(keyword)))
+  )?.districtName;
+};
+
+const resolveLivingPopulationDistrict = (
+  region?: string,
+  places: CandidatePlace[] = []
+): { districtName: string; guCode: string } | undefined => {
+  const candidates = [
+    region,
+    ...places.flatMap((place) => [place.region, place.address, place.title])
+  ];
+
+  for (const candidate of candidates) {
+    const districtName = resolveDistrictNameFromText(candidate);
+    if (districtName) {
+      return {
+        districtName,
+        guCode: GU_CODE_BY_NAME[districtName]
+      };
+    }
+  }
+
+  return undefined;
+};
+
+const getKstDateParts = (value?: string): { dayOfWeek: number; hourCode: number } => {
+  const parsed = value ? new Date(value) : new Date();
+  const target = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const kst = new Date(target.getTime() + 9 * 60 * 60 * 1000);
+  const day = kst.getUTCDay();
+
+  return {
+    dayOfWeek: day === 0 ? 7 : day,
+    hourCode: kst.getUTCHours()
+  };
+};
+
+const classifyLivingPopulationCongestion = (avgPopulation: number | null): CongestionLevel => {
+  if (avgPopulation === null) {
+    return "unknown";
+  }
+
+  if (avgPopulation < 15000) {
+    return "low";
+  }
+
+  if (avgPopulation < 30000) {
+    return "medium";
+  }
+
+  return "high";
 };
 
 const chooseWeatherSource = (dateTime?: string): WeatherSource => {
@@ -315,11 +435,39 @@ const buildPlaceDistances = (
     return accumulator;
   }, {});
 
+const buildLivingPopulationContext = async (
+  region: string | undefined,
+  dateTime: string | undefined,
+  places: CandidatePlace[]
+): Promise<RecommendationContextData["livingPopulation"] | undefined> => {
+  const district = resolveLivingPopulationDistrict(region, places);
+  if (!district) {
+    return undefined;
+  }
+
+  const { dayOfWeek, hourCode } = getKstDateParts(dateTime);
+  const avgPopulation = await livingPopulationRepository.findAvgByGuCode(
+    district.guCode,
+    dayOfWeek,
+    hourCode
+  );
+
+  return {
+    source: "livingPopulation",
+    guCode: district.guCode,
+    districtName: district.districtName,
+    dayOfWeek,
+    hourCode,
+    avgPopulation: avgPopulation ?? undefined,
+    congestion: classifyLivingPopulationCongestion(avgPopulation)
+  };
+};
+
 export const fetchContextDataNode = async (
   state: SeoulMateGraphState
 ): Promise<SeoulMateGraphUpdate> => {
-  console.log("=== fetchContextData 진입 ===", state.parsedRequest?.dateTime);
   const errors: string[] = [];
+  const warnings: string[] = [];
   const candidatePlaces = state.candidatePlaces ?? [];
   const areaName = resolveCityDataAreaName(state.parsedRequest?.region, candidatePlaces);
   const referenceCoordinate = getReferenceCoordinate(candidatePlaces);
@@ -331,10 +479,12 @@ export const fetchContextDataNode = async (
       cityData = normalizeCityData(areaName, await seoulOpenDataClient.fetchCityData(areaName));
     } catch (error) {
       errors.push(`citydata unavailable: ${getErrorMessage(error)}`);
+      warnings.push(WEATHER_WARNING);
     }
   }
 
   let weather: RecommendationContextData["weather"];
+  let livingPopulation: RecommendationContextData["livingPopulation"] | undefined;
 
   try {
     if (weatherSource === "cityData") {
@@ -378,18 +528,36 @@ export const fetchContextDataNode = async (
     }
   } catch (error) {
     errors.push(`weather unavailable: ${getErrorMessage(error)}`);
+    warnings.push(WEATHER_WARNING);
     weather = {
       source: weatherSource,
       targetDateTime: state.parsedRequest?.dateTime
     };
   }
 
+  try {
+    livingPopulation = await buildLivingPopulationContext(
+      state.parsedRequest?.region,
+      state.parsedRequest?.dateTime,
+      candidatePlaces
+    );
+
+    if (livingPopulation?.congestion === "unknown") {
+      warnings.push(CONGESTION_WARNING);
+    }
+  } catch (error) {
+    errors.push(`living population unavailable: ${getErrorMessage(error)}`);
+    warnings.push(CONGESTION_WARNING);
+  }
+
   return {
     contextData: {
       cityData,
       weather,
-      placeDistances: buildPlaceDistances(referenceCoordinate, candidatePlaces)
+      placeDistances: buildPlaceDistances(referenceCoordinate, candidatePlaces),
+      livingPopulation
     },
+    warnings: [...new Set(warnings)],
     errors
   };
 };

@@ -2,6 +2,7 @@ import { runRecommendationGraph } from "../graphs/recommendation.graph";
 import type {
   AiExplanation,
   CandidatePlace,
+  CongestionLevel,
   ParsedRecommendationRequest,
   RecommendationContextData,
   RecommendationCourse,
@@ -31,6 +32,7 @@ export interface RecommendationResult {
   scores?: ScoredRecommendationPlace[];
   validation?: RecommendationValidation;
   riskNotices: string[];
+  warnings: string[];
   finalRecommendation?: unknown;
   candidateCount: number;
   errors: string[];
@@ -65,7 +67,7 @@ export interface CourseResponse {
   description?: string;
   totalCost: number;
   duration: number;
-  congestion: "low" | "medium" | "high" | "unknown";
+  congestion: CongestionLevel;
   weather?: RecommendationContextData["weather"];
   places: CoursePlaceResponse[];
 }
@@ -75,6 +77,11 @@ export interface PagedCoursesResponse {
   total: number;
   page: number;
   page_size: number;
+}
+
+export interface RecommendCoursesResponse {
+  courses: CourseResponse[];
+  warnings?: string[];
 }
 
 export interface CourseDetail {
@@ -120,16 +127,47 @@ const hasDateTimeHint = (value: string): boolean =>
     value
   );
 
+const DATE_TIME_RANGE_ERROR_MESSAGE = "날짜는 현재 시각 이후 10일 이내만 입력 가능합니다.";
+const MAX_DATE_TIME_RANGE_MS = 10 * 24 * 60 * 60 * 1000;
+
+const validateRequestDateTime = (value: string): string => {
+  const target = new Date(value);
+  if (Number.isNaN(target.getTime())) {
+    throw new ApiError(400, "유효한 dateTime 형식이 아닙니다.");
+  }
+
+  const now = Date.now();
+  const targetTime = target.getTime();
+  if (targetTime < now || targetTime > now + MAX_DATE_TIME_RANGE_MS) {
+    throw new ApiError(400, DATE_TIME_RANGE_ERROR_MESSAGE);
+  }
+
+  return target.toISOString();
+};
+
+const readRequestDateTime = (value: unknown): string => {
+  if (value === undefined || value === null || value === "") {
+    return "";
+  }
+
+  if (typeof value !== "string") {
+    throw new ApiError(400, "유효한 dateTime 형식이 아닙니다.");
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? validateRequestDateTime(trimmed) : "";
+};
+
 const normalizeStringArray = (value: unknown, fieldName: string, required = false): string[] => {
   if (value === undefined) {
     if (required) {
-      throw new ApiError(400, `${fieldName} is required`);
+      throw new ApiError(400, `${fieldName} 값은 필수입니다.`);
     }
     return [];
   }
 
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new ApiError(400, `${fieldName} must be a string array`);
+    throw new ApiError(400, `${fieldName} 값은 문자열 배열이어야 합니다.`);
   }
 
   return value.map((item) => item.trim()).filter(Boolean);
@@ -141,27 +179,31 @@ const buildStructuredRecommendationInput = (
   const legacyInput = typeof payload.input === "string" ? payload.input.trim() : "";
 
   if (legacyInput && !payload.region && !payload.budget && !payload.duration && !payload.vibes) {
-    return { rawInput: legacyInput };
+    const dateTime = readRequestDateTime(payload.dateTime);
+    return {
+      rawInput: legacyInput,
+      parsedRequest: dateTime ? { dateTime } : undefined
+    };
   }
 
   const region = typeof payload.region === "string" ? payload.region.trim() : "";
   const budget = Number(payload.budget);
   const durationHours = durationToHours(payload.duration);
   const vibes = normalizeStringArray(payload.vibes, "vibes", true);
-  const dateTime = typeof payload.dateTime === "string" ? payload.dateTime.trim() : "";
+  const dateTime = readRequestDateTime(payload.dateTime);
   const purpose = typeof payload.purpose === "string" ? payload.purpose.trim() : undefined;
   const query = typeof payload.query === "string" ? payload.query.trim() : legacyInput;
 
   if (!region) {
-    throw new ApiError(400, "region is required");
+    throw new ApiError(400, "region 값은 필수입니다.");
   }
 
   if (!Number.isFinite(budget) || budget <= 0) {
-    throw new ApiError(400, "budget must be a positive number");
+    throw new ApiError(400, "budget 값은 양수여야 합니다.");
   }
 
   if (!durationHours) {
-    throw new ApiError(400, "duration must be one of 2h, half-day, full-day");
+    throw new ApiError(400, "duration 값은 2h, half-day, full-day 중 하나여야 합니다.");
   }
 
   const structuredText = [
@@ -213,7 +255,7 @@ const assertOwnRequest = (
   userId: number
 ): RecommendationRequest => {
   if (!request || request.userId !== userId) {
-    throw new ApiError(404, "Course not found");
+    throw new ApiError(404, "코스를 찾을 수 없습니다.");
   }
 
   return request;
@@ -238,7 +280,7 @@ const buildCourseDetail = async (
   };
 };
 
-const crowdToCongestion = (crowdLevel?: string): CourseResponse["congestion"] => {
+const crowdToCongestion = (crowdLevel?: string): CongestionLevel => {
   if (!crowdLevel) {
     return "unknown";
   }
@@ -258,6 +300,9 @@ const crowdToCongestion = (crowdLevel?: string): CourseResponse["congestion"] =>
   return "unknown";
 };
 
+const resolveCourseCongestion = (context?: RecommendationContextData): CongestionLevel =>
+  context?.livingPopulation?.congestion ?? crowdToCongestion(context?.cityData?.crowdLevel);
+
 const courseDuration = (places: RecommendationCoursePlace[]): number =>
   places.reduce((sum, place) => sum + place.estimatedTimeMinute + (place.moveTimeMinute ?? 0), 0);
 
@@ -272,7 +317,7 @@ const toCourseResponseFromResult = (result: RecommendationResult): CourseRespons
     description: result.explanation?.summary ?? result.explanation?.reason,
     totalCost: result.course.estimatedBudget,
     duration: courseDuration(result.course.places),
-    congestion: crowdToCongestion(result.context?.cityData?.crowdLevel),
+    congestion: resolveCourseCongestion(result.context),
     weather: result.context?.weather,
     places: result.course.places.map((place) => ({
       id: `plc_${place.placeId}`,
@@ -363,9 +408,7 @@ export const recommendationService = {
         status: "pending",
         courseTitle: state.course?.title ?? null,
         courseDurationMinutes: state.course ? courseDuration(state.course.places) : null,
-        courseCongestion: state.course
-          ? crowdToCongestion(state.contextData?.cityData?.crowdLevel)
-          : null,
+        courseCongestion: state.course ? resolveCourseCongestion(state.contextData) : null,
         courseDescription: state.aiExplanation?.summary ?? state.aiExplanation?.reason ?? null,
         courseEstimatedBudget: state.course?.estimatedBudget ?? null
       });
@@ -405,6 +448,7 @@ export const recommendationService = {
       scores: state.scoredPlaces,
       validation: state.validation,
       riskNotices: state.riskNotices ?? [],
+      warnings: [...new Set(state.warnings ?? [])],
       finalRecommendation: state.finalRecommendation,
       candidateCount: state.candidatePlaces?.length ?? 0,
       errors: state.errors ?? []
@@ -414,12 +458,18 @@ export const recommendationService = {
   async recommendCoursesForApi(
     payload: RecommendCoursePayload,
     userId: number
-  ): Promise<{ courses: CourseResponse[] }> {
+  ): Promise<RecommendCoursesResponse> {
     const result = await this.recommendCourse(payload, userId);
     const course = toCourseResponseFromResult(result);
-    return {
+    const response: RecommendCoursesResponse = {
       courses: course ? [course] : []
     };
+
+    if (result.warnings.length) {
+      response.warnings = result.warnings;
+    }
+
+    return response;
   },
 
   async getCourse(courseId: number, userId: number): Promise<CourseDetail> {
@@ -468,7 +518,7 @@ export const recommendationService = {
     );
     const existing = await recommendationRepository.getSavedCourse(userId, request.id);
     if (existing) {
-      throw new ApiError(409, "Course already saved");
+      throw new ApiError(409, "이미 저장된 코스입니다.");
     }
 
     const saved = await recommendationRepository.saveCourse(userId, request.id, notes);
@@ -479,7 +529,7 @@ export const recommendationService = {
     assertOwnRequest(await recommendationRepository.getRequestById(courseId), userId);
     const removed = await recommendationRepository.removeSavedCourse(userId, courseId);
     if (!removed) {
-      throw new ApiError(404, "Saved course not found");
+      throw new ApiError(404, "저장된 코스를 찾을 수 없습니다.");
     }
 
     return { removed };

@@ -47,7 +47,16 @@ const isOutdoorPlace = (place: CandidatePlace): boolean =>
   includesAny(buildSearchText(place), ["공원", "산책", "자연", "야외", "둘레길", "한강", "숲"]);
 
 const isIndoorPlace = (place: CandidatePlace): boolean =>
-  includesAny(buildSearchText(place), ["카페", "전시", "문화", "공간", "식당", "음식", "실내", "박물관"]);
+  includesAny(buildSearchText(place), [
+    "카페",
+    "전시",
+    "문화",
+    "공간",
+    "식당",
+    "음식",
+    "실내",
+    "박물관"
+  ]);
 
 const estimatePlaceCost = (place: CandidatePlace): number => {
   if (typeof place.estimatedCost === "number") {
@@ -124,7 +133,10 @@ const scoreMood = (place: CandidatePlace, request?: ParsedRecommendationRequest)
       score += (SCORE_WEIGHT.mood / moods.length) * 0.85;
     } else if (mood.includes("부담") && estimatePlaceCost(place) <= 10000) {
       score += (SCORE_WEIGHT.mood / moods.length) * 0.9;
-    } else if (mood.includes("감성") && includesAny(text, ["카페", "전시", "문화", "공간", "야경"])) {
+    } else if (
+      mood.includes("감성") &&
+      includesAny(text, ["카페", "전시", "문화", "공간", "야경"])
+    ) {
       score += (SCORE_WEIGHT.mood / moods.length) * 0.85;
     } else if (mood.includes("활기") && includesAny(text, ["거리", "맛집", "시장", "관광"])) {
       score += (SCORE_WEIGHT.mood / moods.length) * 0.8;
@@ -137,6 +149,19 @@ const scoreMood = (place: CandidatePlace, request?: ParsedRecommendationRequest)
 };
 
 const scoreCrowd = (context?: RecommendationContextData): number => {
+  const predictedCongestion = context?.livingPopulation?.congestion;
+  if (predictedCongestion === "low") {
+    return SCORE_WEIGHT.crowd;
+  }
+
+  if (predictedCongestion === "medium") {
+    return SCORE_WEIGHT.crowd * 0.8;
+  }
+
+  if (predictedCongestion === "high") {
+    return SCORE_WEIGHT.crowd * 0.3;
+  }
+
   const level = context?.cityData?.crowdLevel ?? "";
 
   if (level.includes("여유")) {

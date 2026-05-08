@@ -11,7 +11,7 @@ export const recommendCourse = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new ApiError(401, "Authentication required");
+      throw new ApiError(401, "로그인이 필요합니다.");
     }
 
     res.status(200).json(await recommendationService.recommendCoursesForApi(req.body, req.user.id));
@@ -24,7 +24,7 @@ const parsePositiveInt = (value: unknown, fieldName: string): number => {
   const normalized = typeof value === "string" ? value.replace(/^crs_/, "") : value;
   const parsed = Number(normalized);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new ApiError(400, `${fieldName} must be a positive integer`);
+    throw new ApiError(400, `${fieldName} 값은 양의 정수여야 합니다.`);
   }
 
   return parsed;
@@ -37,15 +37,17 @@ export const getCourse = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new ApiError(401, "Authentication required");
+      throw new ApiError(401, "로그인이 필요합니다.");
     }
 
-    res.status(200).json(
-      await recommendationService.getCourseForApi(
-        parsePositiveInt(req.params.courseId, "courseId"),
-        req.user.id
-      )
-    );
+    res
+      .status(200)
+      .json(
+        await recommendationService.getCourseForApi(
+          parsePositiveInt(req.params.courseId, "courseId"),
+          req.user.id
+        )
+      );
   } catch (error) {
     next(error);
   }
@@ -58,7 +60,7 @@ export const listMyCourses = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new ApiError(401, "Authentication required");
+      throw new ApiError(401, "로그인이 필요합니다.");
     }
 
     res.status(200).json(
@@ -79,7 +81,7 @@ export const listSavedCourses = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new ApiError(401, "Authentication required");
+      throw new ApiError(401, "로그인이 필요합니다.");
     }
 
     res.status(200).json(
@@ -100,7 +102,7 @@ export const saveCourse = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new ApiError(401, "Authentication required");
+      throw new ApiError(401, "로그인이 필요합니다.");
     }
 
     const saved = await recommendationService.saveCourse(
@@ -124,7 +126,7 @@ export const removeSavedCourse = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new ApiError(401, "Authentication required");
+      throw new ApiError(401, "로그인이 필요합니다.");
     }
 
     await recommendationService.removeSavedCourse(

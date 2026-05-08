@@ -39,7 +39,10 @@ const extractText = (value: unknown): string | undefined => {
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => String(item)).filter(Boolean).join(",");
+    return value
+      .map((item) => String(item))
+      .filter(Boolean)
+      .join(",");
   }
 
   if (typeof value === "object") {
@@ -172,7 +175,7 @@ export const placeService = {
   async getPlace(id: number): Promise<PlaceDetailResponse> {
     const place = await publicDataRepository.getById(id);
     if (!place) {
-      throw new ApiError(404, "Place not found");
+      throw new ApiError(404, "장소를 찾을 수 없습니다.");
     }
 
     return toDetail(place);
