@@ -3,10 +3,12 @@ import express from "express";
 
 import { errorHandler } from "./middlewares/errorHandler";
 import routes from "./routes";
+import { httpLogger } from "./utils/logger";
 
 const app = express();
 
 app.use(cors());
+app.use(httpLogger);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -17,6 +19,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api", routes);
+app.use(routes);
 app.use(errorHandler);
 
 export default app;

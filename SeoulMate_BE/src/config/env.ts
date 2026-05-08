@@ -31,6 +31,7 @@ const parseBoolean = (value: string | undefined, fallback: boolean): boolean => 
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? "development",
+  LOG_LEVEL: process.env.LOG_LEVEL ?? "info",
   PORT: parsePort(process.env.PORT, 3000),
   DATABASE_URL: process.env.DATABASE_URL ?? "",
   DATABASE_SSL: parseBoolean(process.env.DATABASE_SSL, true),
@@ -40,5 +41,23 @@ export const env = {
   POSTGRES_USER: process.env.POSTGRES_USER || "postgres",
   POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD ?? "",
   SEOUL_OPEN_API_KEY: process.env.SEOUL_OPEN_API_KEY ?? "",
-  KMA_API_KEY: process.env.KMA_API_KEY ?? ""
+  KMA_API_KEY: process.env.KMA_API_KEY ?? "",
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+  OPENAI_MODEL: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
+  KAKAO_REST_API_KEY: process.env.KAKAO_REST_API_KEY ?? "",
+  KAKAO_CLIENT_SECRET: process.env.KAKAO_CLIENT_SECRET ?? "",
+  KAKAO_REDIRECT_URI:
+    process.env.KAKAO_REDIRECT_URI ?? "http://localhost:3000/api/auth/kakao/callback",
+  KAKAO_MOBILITY_SERVICE: process.env.KAKAO_MOBILITY_SERVICE ?? "seoulmate",
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? "",
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? "",
+  GOOGLE_REDIRECT_URI:
+    process.env.GOOGLE_REDIRECT_URI ?? "http://localhost:3000/api/auth/google/callback",
+  FRONTEND_URL: process.env.FRONTEND_URL ?? "http://localhost:3001",
+  JWT_SECRET: process.env.JWT_SECRET ?? "seoulmate-dev-secret",
+  JWT_ACCESS_EXPIRES_IN_SECONDS: parsePort(process.env.JWT_ACCESS_EXPIRES_IN_SECONDS, 60 * 60),
+  JWT_REFRESH_EXPIRES_IN_SECONDS: parsePort(
+    process.env.JWT_REFRESH_EXPIRES_IN_SECONDS,
+    60 * 60 * 24 * 14
+  )
 } as const;

@@ -8,6 +8,11 @@ export interface RecommendationRequest {
   companion: string | null;
   transportMode: string | null;
   status: "pending" | "completed" | "failed";
+  courseTitle: string | null;
+  courseDurationMinutes: number | null;
+  courseCongestion: string | null;
+  courseDescription: string | null;
+  courseEstimatedBudget: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,6 +26,11 @@ export interface CreateRecommendationRequestInput {
   companion?: string | null;
   transportMode?: string | null;
   status?: "pending" | "completed" | "failed";
+  courseTitle?: string | null;
+  courseDurationMinutes?: number | null;
+  courseCongestion?: string | null;
+  courseDescription?: string | null;
+  courseEstimatedBudget?: number | null;
 }
 
 export interface RecommendationItem {

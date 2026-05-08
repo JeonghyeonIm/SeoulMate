@@ -1,5 +1,6 @@
 import { db } from "../config/db";
 import { epsg5174ToWgs84 } from "../utils/coordinates";
+import logger from "../utils/logger";
 
 const BATCH_SIZE = 1000;
 const TARGET_DATASETS = ["LOCALDATA_072404", "LOCALDATA_072405"];
@@ -21,7 +22,7 @@ const run = async (): Promise<void> => {
     [TARGET_DATASETS]
   );
 
-  console.log(`Found ${rows.length} records to convert`);
+  logger.info({ count: rows.length }, "Found records to convert");
 
   let updated = 0;
   let skipped = 0;
@@ -65,14 +66,14 @@ const run = async (): Promise<void> => {
     );
 
     updated += updates.length;
-    console.log(`Converted ${updated} / ${rows.length}`);
+    logger.info({ updated, total: rows.length }, "Converted coordinate batch");
   }
 
-  console.log(JSON.stringify({ updated, skipped }, null, 2));
+  logger.info({ updated, skipped }, "Coordinate conversion completed");
   await db.end();
 };
 
 run().catch((err) => {
-  console.error(err);
+  logger.error({ err }, "Coordinate conversion failed");
   process.exit(1);
 });

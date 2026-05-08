@@ -14,7 +14,7 @@ const poolConfig: PoolConfig = env.DATABASE_URL
       port: env.POSTGRES_PORT,
       database: env.POSTGRES_DB,
       user: env.POSTGRES_USER,
-      password: env.POSTGRES_PASSWORD,
+      password: String(env.POSTGRES_PASSWORD),
       ssl: shouldUseSsl ? { rejectUnauthorized: false } : false
     };
 

@@ -10,6 +10,9 @@
   - [recommendation_requests](#recommendation_requests)
   - [recommendations](#recommendations)
   - [saved_courses](#saved_courses)
+  - [weather_forecasts](#weather_forecasts)
+  - [living_population_stats](#living_population_stats)
+  - [refresh_token_blacklist](#refresh_token_blacklist)
 - [공개데이터 수집 파이프라인](#공개데이터-수집-파이프라인)
   - [아키텍처](#아키텍처)
   - [데이터셋별 상세 명세](#데이터셋별-상세-명세)
@@ -26,14 +29,17 @@
 - **SSL**: 필수 (`DATABASE_SSL=true`)
 - **주요 테이블**
 
-| 테이블                    | 역할                        |
-| ------------------------- | --------------------------- |
-| `users`                   | 사용자 계정 및 선호 정보    |
-| `public_data`             | 서울 공개데이터 통합 저장소 |
-| `public_data_sync_runs`   | 데이터 수집 실행 이력       |
-| `recommendation_requests` | AI 추천 요청                |
-| `recommendations`         | 추천 결과 (코스 구성)       |
-| `saved_courses`           | 사용자가 저장한 코스        |
+| 테이블                    | 역할                                  |
+| ------------------------- | ------------------------------------- |
+| `users`                   | 사용자 계정, 선호 정보, OAuth 연동    |
+| `public_data`             | 서울 공개데이터 통합 저장소           |
+| `public_data_sync_runs`   | 데이터 수집 실행 이력                 |
+| `recommendation_requests` | AI 추천 요청 및 코스 snapshot         |
+| `recommendations`         | 추천 결과 (코스 구성)                 |
+| `saved_courses`           | 사용자가 저장한 코스                  |
+| `weather_forecasts`       | 기상청 중기예보 (지역별, 일별)        |
+| `living_population_stats` | 행정동×요일×시간대 평균 생활인구 통계 |
+| `refresh_token_blacklist` | 로그아웃된 refresh token 블랙리스트   |
 
 ---
 
@@ -42,18 +48,34 @@
 ### users
 
 ```sql
-id               bigserial  PK
-email            varchar(255)  UNIQUE NOT NULL
-password_hash    varchar(255)  NOT NULL
-nickname         varchar(50)   UNIQUE NOT NULL
+id               bigserial      PK
+email            varchar(255)   UNIQUE NOT NULL
+password_hash    varchar(255)   NULL  -- OAuth 사용자는 null
+nickname         varchar(50)    UNIQUE NOT NULL
 preferred_region varchar(50)
 preferred_category varchar(100)
-created_at       timestamp NOT NULL DEFAULT now()
-updated_at       timestamp NOT NULL DEFAULT now()
+vibes            text[]         NOT NULL DEFAULT '{}'
+budget           integer        CHECK (budget IS NULL OR budget >= 0)
+role             varchar(20)    NOT NULL DEFAULT 'user'
+                                CHECK (role IN ('user', 'admin'))
+provider         varchar(20)    NOT NULL DEFAULT 'local'
+                                CHECK (provider IN ('local', 'kakao', 'google'))
+oauth_id         varchar(255)
+created_at       timestamp      NOT NULL DEFAULT now()
+updated_at       timestamp      NOT NULL DEFAULT now()
 ```
 
-- `preferred_region`: 구 단위 (예: `종로구`)
-- `preferred_category`: `public_data.category` 값과 동일 도메인
+**인덱스**
+
+| 인덱스                    | 컬럼                   | 조건                         |
+| ------------------------- | ---------------------- | ---------------------------- |
+| `uq_users_provider_oauth` | `(provider, oauth_id)` | `WHERE oauth_id IS NOT NULL` |
+
+- `vibes`: 선호 분위기 배열 (허용값: `src/types/auth.types.ts` Vibe 타입)
+- `budget`: 1회 코스 최대 예산 (원 단위, nullable)
+- `role`: `'user'` | `'admin'` — API 레벨 403 강제는 미적용
+- `provider`: `'local'` | `'kakao'` | `'google'`
+- `password_hash`: 로컬 계정만 사용, OAuth 계정은 `null`
 
 ---
 
@@ -112,17 +134,23 @@ finished_at    timestamp
 ### recommendation_requests
 
 ```sql
-id                 bigserial  PK
-user_id            bigint  NOT NULL  FK → users(id)
-request_text       text
-preferred_region   varchar(50)
-preferred_category varchar(100)
-budget             integer  CHECK (>= 0)
-companion          varchar(50)
-transport_mode     varchar(30)
-status             varchar(20)  -- 'pending' | 'completed' | 'failed'
-created_at         timestamp
-updated_at         timestamp
+id                        bigserial   PK
+user_id                   bigint      NOT NULL  FK → users(id) ON DELETE CASCADE
+request_text              text
+preferred_region          varchar(50)
+preferred_category        varchar(100)
+budget                    integer     CHECK (budget IS NULL OR budget >= 0)
+companion                 varchar(50)
+transport_mode            varchar(30)
+status                    varchar(20) DEFAULT 'pending'
+                                      CHECK (status IN ('pending', 'completed', 'failed'))
+course_title              varchar(255)           -- 추천 당시 코스 제목 snapshot
+course_duration_minutes   integer                CHECK (>= 0)
+course_congestion         varchar(20)            -- LOW | MEDIUM | HIGH
+course_description        text
+course_estimated_budget   integer                CHECK (>= 0)
+created_at                timestamp   NOT NULL DEFAULT now()
+updated_at                timestamp   NOT NULL DEFAULT now()
 ```
 
 ---
@@ -150,13 +178,87 @@ UNIQUE (request_id, public_data_id)
 
 ```sql
 id          bigserial  PK
-user_id     bigint  NOT NULL  FK → users(id)
-request_id  bigint  NOT NULL  FK → recommendation_requests(id)
+user_id     bigint  NOT NULL  FK → users(id) ON DELETE CASCADE
+request_id  bigint  NOT NULL  FK → recommendation_requests(id) ON DELETE CASCADE
 notes       text
 saved_at    timestamp NOT NULL DEFAULT now()
 
 UNIQUE (user_id, request_id)
 ```
+
+---
+
+### weather_forecasts
+
+기상청 중기예보 API 결과를 지역별·날짜별로 저장. 서버 시작 시 스케줄러가 자동 갱신.
+
+```sql
+id            bigserial    PK
+region_code   varchar(20)  NOT NULL
+region_name   varchar(50)
+forecast_date date         NOT NULL
+temp_min      smallint
+temp_max      smallint
+rain_prob_am  smallint                 -- 오전 강수확률 (0~100)
+rain_prob_pm  smallint                 -- 오후 강수확률 (0~100)
+weather_am    varchar(30)              -- 오전 날씨 코드
+weather_pm    varchar(30)              -- 오후 날씨 코드
+base_time     varchar(12)  NOT NULL    -- 예보 발표 기준 시간
+fetched_at    timestamp    NOT NULL DEFAULT now()
+
+UNIQUE (region_code, forecast_date)
+```
+
+**인덱스**: `idx_weather_forecast_date (forecast_date)`
+
+---
+
+### living_population_stats
+
+서울시 생활인구 데이터(OA-14991)를 행정동×요일×시간대 단위로 집계한 평균 유동인구 패턴. 미래 날짜 혼잡도 예측에 활용.
+
+```sql
+id              bigserial    PK
+dong_code       varchar(10)  NOT NULL                -- 행정동코드 (8자리)
+day_of_week     smallint     NOT NULL CHECK (1~7)    -- 1=월 ~ 7=일 (ISO)
+hour_code       smallint     NOT NULL CHECK (0~23)   -- 0~23시
+avg_population  integer      NOT NULL                -- 해당 슬롯 평균 생활인구수
+sample_months   smallint     NOT NULL DEFAULT 0      -- 집계에 사용된 월 수
+updated_at      timestamptz  DEFAULT now()
+
+UNIQUE (dong_code, day_of_week, hour_code)
+```
+
+**인덱스**: `idx_living_population_stats_lookup (dong_code, day_of_week, hour_code)`
+
+- 현재 적재 규모: 424 행정동 × 7 요일 × 24 시간 = 71,232 행
+- 구 단위 조회: `dong_code`의 앞 5자리가 구 코드 (예: `'11650'` = 강남구)
+- 동기화 명령: `npm run sync:living-population` (기본 최근 3개월, `LIVING_POP_MONTHS` 환경변수로 조정)
+
+---
+
+### refresh_token_blacklist
+
+로그아웃 시 refresh token을 서버 측에서 무효화하기 위한 블랙리스트.
+
+```sql
+id          bigserial    PK
+token_hash  varchar(64)  NOT NULL UNIQUE    -- SHA-256(refresh token) hex
+user_id     integer      NOT NULL FK → users(id) ON DELETE CASCADE
+expires_at  timestamptz  NOT NULL           -- 원본 토큰의 exp 클레임 기준
+created_at  timestamptz  DEFAULT now()
+```
+
+**인덱스**
+
+| 인덱스                | 컬럼         | 용도                            |
+| --------------------- | ------------ | ------------------------------- |
+| `idx_rtbl_token_hash` | `token_hash` | refresh 요청 시 블랙리스트 조회 |
+| `idx_rtbl_expires_at` | `expires_at` | 만료 레코드 정리 (1시간 주기)   |
+
+- `token_hash`: 원문 토큰 대신 SHA-256 해시 저장 (보안)
+- `isBlacklisted` 쿼리는 `expires_at > now()` 조건 포함 → 만료 해시 자동 제외
+- 서버 내 스케줄러가 1시간마다 `DELETE WHERE expires_at <= now()` 실행
 
 ---
 
@@ -661,15 +763,14 @@ Y ≈ 440,000 ~ 465,000  →  latitude  ≈ 37.4° ~ 37.7°
 
 ## 마이그레이션
 
-| 파일                                                           | 내용                                                |
-| -------------------------------------------------------------- | --------------------------------------------------- |
-| `db/migrations/20260506_initial_schema.sql`                    | 전체 초기 스키마 생성                               |
-| `db/migrations/20260507_fix_public_data_unique_constraint.sql` | 유니크 제약 컬럼 수정 (`source` → `source_dataset`) |
+파일명 순서대로 적용:
 
-적용 순서대로 실행:
-
-```bash
-psql -h <host> -U postgres -d seoulmate-db \
-  -f db/migrations/20260506_initial_schema.sql \
-  -f db/migrations/20260507_fix_public_data_unique_constraint.sql
-```
+| 파일                                             | 내용                                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `20260506_initial_schema.sql`                    | 초기 스키마 (users, public*data, recommendation*\*, saved_courses)                    |
+| `20260507_fix_public_data_unique_constraint.sql` | 유니크 제약 컬럼 수정 (`source` → `source_dataset`)                                   |
+| `20260507_add_weather_forecasts.sql`             | `weather_forecasts` 테이블 신규                                                       |
+| `20260508_users_schema_and_course_snapshot.sql`  | `users`에 vibes/budget/role 추가, recommendation_requests에 course snapshot 컬럼 추가 |
+| `20260508_users_add_oauth.sql`                   | `users`에 provider/oauth_id 추가, password_hash nullable 변경                         |
+| `20260508_add_living_population_stats.sql`       | `living_population_stats` 테이블 신규                                                 |
+| `20260508_add_refresh_token_blacklist.sql`       | `refresh_token_blacklist` 테이블 신규                                                 |

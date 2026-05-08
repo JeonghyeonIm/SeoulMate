@@ -8,7 +8,8 @@ export const DATASET_CATEGORY = {
   REST_AREA_PERMIT: "서울시 휴게음식점 인허가 정보",
   GENERAL_RESTAURANT_PERMIT: "서울시 일반음식점 인허가 정보",
   FOOD_HYGIENE: "서울시 식품위생업소 현황",
-  NIGHT_SPOT: "서울시 야경명소 정보"
+  NIGHT_SPOT: "서울시 야경명소 정보",
+  LIVING_POPULATION: "서울시 생활인구 통계"
 } as const;
 
 export const INITIAL_PUBLIC_DATA_SYNC_SOURCE = "initial_public_data_sync";

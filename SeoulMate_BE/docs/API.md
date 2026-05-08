@@ -2,73 +2,85 @@
 
 ## Overview
 
-This document describes the API surface for `SeoulMate_BE`.
-Bootstrap endpoints and the sign-up endpoint are implemented; the remaining domain endpoints below are still design-level targets.
-
-## Current Implementation Status
-
-- Currently implemented:
-  - `GET /health`
-  - `GET /api`
-  - `POST /api/auth/signup`
-- Planned but not implemented yet:
-  - login, refresh, logout APIs
-  - user APIs
-  - course recommendation APIs
-  - place APIs
+이 문서는 현재 `SeoulMate_BE`에 구현되어 있는 API를 설명합니다.
 
 ## Base URL
+
+기본 API Base URL:
 
 ```text
 http://localhost:<PORT>/api
 ```
 
-## Authentication Model
+서버는 동일한 라우터를 루트 경로에도 마운트하고 있으므로 대부분의 `/api/...` 엔드포인트는 `/...` 경로로도 접근할 수 있습니다. 이 문서에서는 `/api` 경로를 기준 경로로 사용합니다.
 
-- Authentication scheme:
-  - JWT Bearer Token
-- Standard header format:
+## Authentication
+
+- 보호된 엔드포인트는 아래 형식의 액세스 토큰 헤더가 필요합니다:
 
 ```http
-Authorization: Bearer <JWT>
+Authorization: Bearer <access_token>
 ```
 
-- Notes:
-  - User auth endpoints are planned.
-  - Admin authorization policy is not defined in the repository yet.
-  - Refresh token transport and storage policy still need to be fixed.
+- 로그인, 회원가입, 토큰 재발급 응답은 공통으로 아래 인증 응답 형식을 사용합니다:
+
+```json
+{
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "nickname": "seoulmate"
+  },
+  "accessToken": "<jwt>",
+  "refreshToken": "<jwt>",
+  "tokenType": "Bearer",
+  "expiresIn": 3600
+}
+```
+
+## Error Response
+
+대부분의 처리된 오류 응답은 아래 형식을 사용합니다:
+
+```json
+{
+  "message": "Error message"
+}
+```
 
 ## Endpoint Summary
 
-| Category  | Feature                | Actor  | Method   | URL                         | Status      |
-| --------- | ---------------------- | ------ | -------- | --------------------------- | ----------- |
-| Bootstrap | Health check           | Public | `GET`    | `/health`                   | Implemented |
-| Bootstrap | API root               | Public | `GET`    | `/api`                      | Implemented |
-| Auth      | Login                  | User   | `POST`   | `/auth/login`               | Planned     |
-| Auth      | Refresh token          | User   | `POST`   | `/auth/refresh`             | Planned     |
-| Auth      | Sign up                | User   | `POST`   | `/auth/signup`              | Implemented |
-| Auth      | Logout                 | User   | `POST`   | `/auth/logout`              | Planned     |
-| User      | Get current user       | User   | `GET`    | `/users/me`                 | Planned     |
-| User      | Update preferences     | User   | `PATCH`  | `/users/me/preferences`     | Planned     |
-| User      | List users             | Admin  | `GET`    | `/users`                    | Planned     |
-| User      | Get user by ID         | Admin  | `GET`    | `/users/{user_id}`          | Planned     |
-| Course    | Request recommendation | User   | `POST`   | `/courses/recommend`        | Planned     |
-| Course    | Get course detail      | User   | `GET`    | `/courses/{course_id}`      | Planned     |
-| Course    | Save course            | User   | `POST`   | `/courses/{course_id}/save` | Planned     |
-| Course    | Unsave course          | User   | `DELETE` | `/courses/{course_id}/save` | Planned     |
-| Course    | List saved courses     | User   | `GET`    | `/courses/saved`            | Planned     |
-| Place     | Get place detail       | User   | `GET`    | `/places/{place_id}`        | Planned     |
-| Search    | Search places          | User   | `GET`    | `/places/search`            | Planned     |
+| Category  | Method   | URL                            | Auth | Status      |
+| --------- | -------- | ------------------------------ | ---- | ----------- |
+| Bootstrap | `GET`    | `/health`                      | No   | Implemented |
+| Bootstrap | `GET`    | `/api`                         | No   | Implemented |
+| Auth      | `POST`   | `/api/auth/signup`             | No   | Implemented |
+| Auth      | `POST`   | `/api/auth/login`              | No   | Implemented |
+| Auth      | `POST`   | `/api/auth/refresh`            | No   | Implemented |
+| Auth      | `POST`   | `/api/auth/logout`             | No   | Implemented |
+| Auth      | `GET`    | `/api/auth/kakao`              | No   | Implemented |
+| Auth      | `GET`    | `/api/auth/kakao/callback`     | No   | Implemented |
+| Auth      | `GET`    | `/api/auth/google`             | No   | Implemented |
+| Auth      | `GET`    | `/api/auth/google/callback`    | No   | Implemented |
+| Users     | `GET`    | `/api/users/me`                | Yes  | Implemented |
+| Users     | `PATCH`  | `/api/users/me/preferences`    | Yes  | Implemented |
+| Users     | `GET`    | `/api/users`                   | Yes  | Implemented |
+| Users     | `GET`    | `/api/users/{userId}`          | Yes  | Implemented |
+| Courses   | `POST`   | `/api/courses/recommend`       | Yes  | Implemented |
+| Courses   | `GET`    | `/api/courses`                 | Yes  | Implemented |
+| Courses   | `GET`    | `/api/courses/saved`           | Yes  | Implemented |
+| Courses   | `GET`    | `/api/courses/{courseId}`      | Yes  | Implemented |
+| Courses   | `POST`   | `/api/courses/{courseId}/save` | Yes  | Implemented |
+| Courses   | `DELETE` | `/api/courses/{courseId}/save` | Yes  | Implemented |
+| Places    | `GET`    | `/api/places/search`           | Yes  | Implemented |
+| Places    | `GET`    | `/api/places/{placeId}`        | Yes  | Implemented |
 
 ## Bootstrap APIs
 
 ### `GET /health`
 
-- Purpose: runtime health check
-- Actor: public
-- Auth: not required
-- Query Params: none
-- Response:
+- 인증: 필요 없음
+- 응답:
 
 ```json
 {
@@ -78,11 +90,8 @@ Authorization: Bearer <JWT>
 
 ### `GET /api`
 
-- Purpose: API root check
-- Actor: public
-- Auth: not required
-- Query Params: none
-- Response:
+- 인증: 필요 없음
+- 응답:
 
 ```json
 {
@@ -92,326 +101,446 @@ Authorization: Bearer <JWT>
 
 ## Auth APIs
 
-### `POST /auth/login`
+### `POST /api/auth/signup`
 
-- Purpose: email or social login
-- Actor: user
-- Auth: not required
-- Query Params: none
-- Request Body:
-
-```json
-<!-- TODO: fill in -->
-```
-
-- Response:
-
-```json
-<!-- TODO: fill in -->
-```
-
-- Notes:
-  - Final login modes and provider list are not defined in the repository yet.
-
-### `POST /auth/refresh`
-
-- Purpose: reissue access token
-- Actor: user
-- Auth: refresh-token based
-- Query Params: none
-- Request Body:
-
-```json
-<!-- TODO: fill in -->
-```
-
-- Response:
-
-```json
-<!-- TODO: fill in -->
-```
-
-### `POST /auth/signup`
-
-- Purpose: register a new user
-- Actor: user
-- Auth: not required
-- Query Params: none
-- Request Body:
+- 목적: 로컬 계정을 생성합니다
+- 인증: 필요 없음
+- 요청 본문:
 
 ```json
 {
   "email": "local1@example.com",
   "password": "password123",
-  "nickname": "서울러버",
-  "provider": "local",
+  "nickname": "seoulmate",
   "preferences": {
-    "vibes": ["조용한", "감성적인"]
+    "vibes": ["<allowed-vibe>"]
   }
 }
 ```
 
-- Response:
+- 참고:
+  - `email`: 필수, 올바른 이메일 형식이어야 합니다
+  - `password`: 필수, 최소 8자 이상이어야 합니다
+  - `nickname`: 필수, 2자 이상 10자 이하입니다
+  - `preferences`는 선택값입니다
+  - `preferences.vibes`는 `null` 또는 `src/types/auth.types.ts`에 정의된 허용 vibe 문자열 배열이어야 합니다
+  - 현재 구현에서는 이 엔드포인트로 `local` 계정만 생성합니다
+- 성공 응답: `201 Created`
+- 응답: 공통 인증 응답 형식과 동일
+- 주요 오류:
+  - `400` 잘못된 요청 본문
+  - `409` 이메일 또는 닉네임 중복
+
+### `POST /api/auth/login`
+
+- 목적: 로컬 이메일/비밀번호 로그인
+- 인증: 필요 없음
+- 요청 본문:
 
 ```json
 {
-  "id": "2dd33eb8-8599-4881-aec2-6433f193a07c",
   "email": "local1@example.com",
-  "nickname": "서울러버",
-  "createdAt": "2026-05-06T10:00:00.000Z"
+  "password": "password123"
 }
 ```
 
-- Validation rules:
-  - `email`: required, valid email format
-  - `nickname`: required, 2 to 10 characters
-  - `provider`: required, one of `local`, `kakao`, `google`
-  - `password`: required only when `provider` is `local`, minimum 8 characters
-  - `preferences.vibes`: nullable array; allowed values are `조용한`, `힙한`, `낭만적인`, `활기찬`, `고즈넉한`, `현대적인`, `감성적인`, `자연친화적`
-- Provider behavior:
-  - `local`: password is hashed with `bcrypt` using `saltRounds=10`
-  - `kakao`, `google`: incoming password is ignored
-- Status codes:
-  - `201`: sign-up success
-  - `400`: validation error
-  - `409`: duplicate email or nickname
-  - `500`: internal server error
-- Example error responses:
+- 성공 응답: `200 OK`
+- 응답: 공통 인증 응답 형식과 동일
+- 주요 오류:
+  - `400` `email` 또는 `password` 누락
+  - `401` 잘못된 로그인 정보
+
+### `POST /api/auth/refresh`
+
+- 목적: 유효한 리프레시 토큰으로 새 액세스 토큰과 리프레시 토큰을 발급합니다
+- 인증: 필요 없음
+- 요청 본문:
 
 ```json
 {
-  "message": "이미 사용 중인 이메일입니다."
+  "refreshToken": "<refresh_token>"
 }
 ```
+
+- 성공 응답: `200 OK`
+- 응답: 공통 인증 응답 형식과 동일
+- 주요 오류:
+  - `400` `refreshToken` 누락
+  - `401` 유효하지 않거나 만료된 리프레시 토큰, 또는 로그아웃된 토큰
+
+### `POST /api/auth/logout`
+
+- 목적: 리프레시 토큰을 서버 측 블랙리스트에 등록하여 재사용을 차단합니다
+- 인증: 필요 없음
+- 요청 본문:
 
 ```json
 {
-  "message": "local 회원가입은 8자 이상의 password가 필요합니다."
+  "refreshToken": "<refresh_token>"
 }
 ```
 
-### `POST /auth/logout`
+- 성공 응답: `204 No Content`
+- 참고:
+  - 전달된 리프레시 토큰의 SHA-256 해시를 `refresh_token_blacklist` 테이블에 저장합니다
+  - 이후 동일 토큰으로 `/api/auth/refresh` 호출 시 `401`을 반환합니다
+- 주요 오류:
+  - `400` `refreshToken` 누락
+  - `401` 유효하지 않거나 만료된 리프레시 토큰
 
-- Purpose: invalidate the current session or token
-- Actor: user
-- Auth: `<!-- TODO: fill in -->`
-- Query Params: none
-- Request Body:
+### `GET /api/auth/kakao`
 
-```json
-<!-- TODO: fill in -->
+- 목적: Kakao OAuth 로그인을 시작합니다
+- 인증: 필요 없음
+- 성공 응답: `302 Found`
+- 응답: Kakao 인증 URL로 리다이렉트
+
+### `GET /api/auth/kakao/callback`
+
+- 목적: Kakao OAuth 콜백을 처리합니다
+- 인증: 필요 없음
+- 쿼리 파라미터:
+  - `code`: 필수
+- 성공 응답: `302 Found`
+- 응답: 아래 경로로 리다이렉트
+
+```text
+{FRONTEND_URL}/auth/callback?accessToken=...&refreshToken=...
 ```
 
-- Response:
+### `GET /api/auth/google`
 
-```json
-<!-- TODO: fill in -->
+- 목적: Google OAuth 로그인을 시작합니다
+- 인증: 필요 없음
+- 성공 응답: `302 Found`
+- 응답: Google 인증 URL로 리다이렉트
+
+### `GET /api/auth/google/callback`
+
+- 목적: Google OAuth 콜백을 처리합니다
+- 인증: 필요 없음
+- 쿼리 파라미터:
+  - `code`: 필수
+- 성공 응답: `302 Found`
+- 응답: 아래 경로로 리다이렉트
+
+```text
+{FRONTEND_URL}/auth/callback?accessToken=...&refreshToken=...
 ```
 
 ## User APIs
 
-### `GET /users/me`
+### `GET /api/users/me`
 
-- Purpose: get the currently authenticated user
-- Actor: user
-- Auth: required
-- Query Params: none
-- Path Params: none
-- Response:
+- 목적: 현재 인증된 사용자의 프로필을 조회합니다
+- 인증: 필요
+- 성공 응답: `200 OK`
+- 응답:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "id": "1",
+  "email": "user@example.com",
+  "nickname": "seoulmate",
+  "vibes": ["calm", "romantic"],
+  "budget": 30000,
+  "role": "user",
+  "createdAt": "2026-05-08T10:00:00.000Z",
+  "savedCoursesCount": 2
+}
 ```
 
-- Notes:
-  - Requires `Authorization: Bearer <JWT>`
+### `PATCH /api/users/me/preferences`
 
-### `PATCH /users/me/preferences`
-
-- Purpose: update mood, region, and budget preferences
-- Actor: user
-- Auth: required
-- Query Params: none
-- Path Params: none
-- Request Body:
+- 목적: 현재 사용자의 선호 정보를 수정합니다
+- 인증: 필요
+- 요청 본문:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "vibes": ["calm", "romantic"],
+  "regions": ["Seongsu", "Jamsil"],
+  "budget": 30000
+}
 ```
 
-- Response:
+- 참고:
+  - `vibes`, `regions`, `budget`, `preferredRegion` 중 하나 이상은 반드시 포함되어야 합니다
+  - `vibes`, `regions`가 존재하면 문자열 배열이어야 합니다
+  - `budget`이 존재하면 양수여야 합니다
+  - `regions`가 전달되면 서버는 이를 합쳐 하나의 preferred region 문자열로 저장합니다
+- 성공 응답: `200 OK`
+- 응답:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "vibes": ["calm", "romantic"],
+  "budget": 30000,
+  "updatedAt": "2026-05-08T10:05:00.000Z"
+}
 ```
 
-- Notes:
-  - Requires `Authorization: Bearer <JWT>`
+### `GET /api/users`
 
-### `GET /users`
-
-- Purpose: list all users
-- Actor: admin
-- Auth: `<!-- TODO: fill in -->`
-- Query Params:
-  - `page`
-  - `page_size`
-- Response:
+- 목적: 사용자 목록을 조회합니다
+- 인증: 필요
+- 쿼리 파라미터:
+  - `page` 선택, 기본값 `1`
+  - `page_size` 또는 `pageSize` 선택, 기본값 `20`, 최대 `100`
+- 성공 응답: `200 OK`
+- 응답:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "data": [
+    {
+      "id": "1",
+      "email": "user@example.com",
+      "nickname": "seoulmate",
+      "vibes": ["calm"],
+      "budget": 30000,
+      "role": "user",
+      "createdAt": "2026-05-08T10:00:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 20
+}
 ```
 
-### `GET /users/{user_id}`
+- 참고:
+  - 현재 구현에서는 이 엔드포인트에 대해 관리자 전용 권한을 강제하지 않습니다
 
-- Purpose: get one user by ID
-- Actor: admin
-- Auth: `<!-- TODO: fill in -->`
-- Path Params:
-  - `user_id`
-- Response:
+### `GET /api/users/{userId}`
+
+- 목적: 숫자 ID로 특정 사용자를 조회합니다
+- 인증: 필요
+- 경로 파라미터:
+  - `userId`: 양의 정수
+- 성공 응답: `200 OK`
+- 응답:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "id": "1",
+  "email": "user@example.com",
+  "nickname": "seoulmate",
+  "vibes": ["calm"],
+  "budget": 30000,
+  "role": "user",
+  "createdAt": "2026-05-08T10:00:00.000Z"
+}
 ```
 
 ## Course APIs
 
-### `POST /courses/recommend`
+### `POST /api/courses/recommend`
 
-- Purpose: generate AI-assisted course recommendations
-- Actor: user
-- Auth: required
-- Query Params: none
-- Request Body:
+- 목적: 코스 추천을 생성하고 인증된 사용자의 추천 이력으로 저장합니다
+- 인증: 필요
+- 요청 본문:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "query": "Recommend a calm date course near the river",
+  "region": "Seongsu",
+  "vibes": ["calm", "romantic"],
+  "budget": 40000,
+  "duration": "half-day",
+  "dateTime": "2026-05-08T18:00:00+09:00",
+  "purpose": "date"
+}
 ```
 
-- Response:
+- 참고:
+  - 레거시 입력 형식으로 `{ "input": "free text request" }` 도 지원합니다
+  - 구조화 요청 방식에서는 `region`, `vibes`, `budget`, `duration`이 필요합니다
+  - `duration`은 `2h`, `half-day`, `full-day` 중 하나여야 합니다
+- 성공 응답: `200 OK`
+- 응답:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "courses": [
+    {
+      "id": "crs_12",
+      "title": "Seongsu Date Course",
+      "description": "A calm route with low travel burden.",
+      "totalCost": 36000,
+      "duration": 240,
+      "congestion": "medium",
+      "weather": {
+        "summary": "Clear"
+      },
+      "places": [
+        {
+          "id": "plc_101",
+          "name": "Sample Cafe",
+          "lat": 37.54,
+          "lng": 127.05,
+          "order": 1
+        }
+      ]
+    }
+  ]
+}
 ```
 
-- Notes:
-  - Requires `Authorization: Bearer <JWT>`
-  - Recommendation ranking must account for congestion, travel burden, safety, and cost
+### `GET /api/courses`
 
-### `GET /courses/{course_id}`
-
-- Purpose: get course detail
-- Actor: user
-- Auth: required
-- Path Params:
-  - `course_id`
-- Response:
+- 목적: 현재 사용자가 생성한 추천 코스 목록을 조회합니다
+- 인증: 필요
+- 쿼리 파라미터:
+  - `page` 선택, 기본값 `1`
+  - `page_size` 또는 `pageSize` 선택, 기본값 `10`, 최대 `50`
+- 성공 응답: `200 OK`
+- 응답:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "data": [
+    {
+      "id": "crs_12",
+      "title": "Seongsu Date Course",
+      "description": "A calm route with low travel burden.",
+      "totalCost": 36000,
+      "duration": 240,
+      "congestion": "medium",
+      "places": [
+        {
+          "id": "plc_101",
+          "name": "Sample Cafe",
+          "lat": 37.54,
+          "lng": 127.05,
+          "order": 1,
+          "stayDuration": 60,
+          "priceMin": 9000,
+          "priceMax": 9000,
+          "reason": "Good fit for the requested mood"
+        }
+      ]
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 10
+}
 ```
 
-- Notes:
-  - Requires `Authorization: Bearer <JWT>`
+### `GET /api/courses/saved`
 
-### `POST /courses/{course_id}/save`
+- 목적: 현재 사용자가 저장한 코스 목록을 조회합니다
+- 인증: 필요
+- 쿼리 파라미터:
+  - `page` 선택, 기본값 `1`
+  - `page_size` 또는 `pageSize` 선택, 기본값 `10`, 최대 `50`
+- 성공 응답: `200 OK`
+- 응답 형식: `GET /api/courses`와 동일
 
-- Purpose: save a course to user history
-- Actor: user
-- Auth: required
-- Path Params:
-  - `course_id`
-- Request Body:
+### `GET /api/courses/{courseId}`
+
+- 목적: 현재 사용자의 특정 코스를 조회합니다
+- 인증: 필요
+- 경로 파라미터:
+  - `courseId`: 양의 정수, `crs_12` 형식도 허용
+- 성공 응답: `200 OK`
+- 응답 형식: `GET /api/courses`의 `data[]` 각 항목과 동일
+
+### `POST /api/courses/{courseId}/save`
+
+- 목적: 생성된 코스를 저장합니다
+- 인증: 필요
+- 경로 파라미터:
+  - `courseId`: 양의 정수, `crs_12` 형식도 허용
+- 요청 본문:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "notes": "Try this next weekend"
+}
 ```
 
-- Response:
+- 성공 응답: `201 Created`
+- 응답:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "savedAt": "2026-05-08T10:10:00.000Z"
+}
 ```
 
-- Notes:
-  - Requires `Authorization: Bearer <JWT>`
+- 주요 오류:
+  - `404` 코스를 찾을 수 없음
+  - `409` 이미 저장된 코스
 
-### `DELETE /courses/{course_id}/save`
+### `DELETE /api/courses/{courseId}/save`
 
-- Purpose: remove a saved course
-- Actor: user
-- Auth: required
-- Path Params:
-  - `course_id`
-- Response:
-
-```json
-<!-- TODO: fill in -->
-```
-
-- Notes:
-  - Requires `Authorization: Bearer <JWT>`
-
-### `GET /courses/saved`
-
-- Purpose: list saved courses
-- Actor: user
-- Auth: required
-- Query Params:
-  - `page`
-  - `page_size`
-- Response:
-
-```json
-<!-- TODO: fill in -->
-```
-
-- Notes:
-  - Requires `Authorization: Bearer <JWT>`
+- 목적: 저장한 코스를 삭제합니다
+- 인증: 필요
+- 경로 파라미터:
+  - `courseId`: 양의 정수, `crs_12` 형식도 허용
+- 성공 응답: `204 No Content`
+- 주요 오류:
+  - `404` 저장된 코스를 찾을 수 없음
 
 ## Place APIs
 
-### `GET /places/{place_id}`
+### `GET /api/places/search`
 
-- Purpose: get place detail
-- Actor: user
-- Auth: required
-- Path Params:
-  - `place_id`
-- Response:
-
-```json
-<!-- TODO: fill in -->
-```
-
-- Notes:
-  - Requires `Authorization: Bearer <JWT>`
-
-### `GET /places/search`
-
-- Purpose: search places by keyword and region
-- Actor: user
-- Auth: required
-- Query Params:
-  - `q`
-  - `region`
-  - `category` (optional)
-  - `page` (optional)
-  - `page_size` (optional)
-- Response:
+- 목적: 장소를 검색합니다
+- 인증: 필요
+- 쿼리 파라미터:
+  - `q` 선택
+  - `region` 선택
+  - `category` 선택
+  - `page` 선택, 기본값 `1`
+  - `page_size` 또는 `pageSize` 선택, 기본값 `10`
+- 성공 응답: `200 OK`
+- 응답:
 
 ```json
-<!-- TODO: fill in -->
+{
+  "data": [
+    {
+      "id": "plc_101",
+      "name": "Seoul Forest",
+      "category": "park",
+      "address": "Seongdong-gu, Seoul"
+    }
+  ],
+  "total": 1
+}
 ```
 
-- Notes:
-  - Requires `Authorization: Bearer <JWT>`
+### `GET /api/places/{placeId}`
 
-## Open Items
+- 목적: 장소 상세 정보를 조회합니다
+- 인증: 필요
+- 경로 파라미터:
+  - `placeId`: 양의 정수, `plc_101` 형식도 허용
+- 성공 응답: `200 OK`
+- 응답:
 
-- Signup request/response DTOs are implemented in `src/types/auth.types.ts`.
-- Signup error policy is implemented through `src/utils/ApiError.ts` and `src/middlewares/errorHandler.ts`.
-- Pagination response shape is not defined in the codebase yet.
-- Admin authorization strategy is not defined in the codebase yet.
-- STT, map, and some data provider integration details are still undecided.
+```json
+{
+  "id": "plc_101",
+  "name": "Seoul Forest",
+  "category": "park",
+  "address": "Seongdong-gu, Seoul",
+  "lat": 37.54,
+  "lng": 127.04,
+  "congestion": "unknown",
+  "priceMin": 0,
+  "priceMax": 0,
+  "stayDuration": 50,
+  "openHours": "Check before visit",
+  "imageUrls": []
+}
+```
+
+## Notes
+
+- `GET /api/users`와 `GET /api/users/{userId}`는 현재 관리자 전용이 아니라 인증만 필요합니다.
+- `POST /api/auth/logout`은 서버 측 토큰 폐기를 수행하지 않습니다.
+- `courseId`, `placeId` 경로 파라미터는 순수 숫자 ID뿐 아니라 `crs_12`, `plc_101` 같은 접두사 형식도 허용합니다.

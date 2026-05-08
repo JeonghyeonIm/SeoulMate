@@ -45,5 +45,18 @@ export default tseslint.config(
       ]
     }
   },
+  {
+    files: ["**/*.js", "**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      globals: {
+        ...globals.node
+      }
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+      "no-console": "off"
+    }
+  },
   eslintConfigPrettier
 );

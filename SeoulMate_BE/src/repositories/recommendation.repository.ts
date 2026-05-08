@@ -17,6 +17,13 @@ const mapRecommendationRequest = (row: Record<string, unknown>): RecommendationR
   companion: (row.companion as string | null) ?? null,
   transportMode: (row.transport_mode as string | null) ?? null,
   status: String(row.status) as RecommendationRequest["status"],
+  courseTitle: (row.course_title as string | null) ?? null,
+  courseDurationMinutes:
+    row.course_duration_minutes === null ? null : Number(row.course_duration_minutes),
+  courseCongestion: (row.course_congestion as string | null) ?? null,
+  courseDescription: (row.course_description as string | null) ?? null,
+  courseEstimatedBudget:
+    row.course_estimated_budget === null ? null : Number(row.course_estimated_budget),
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at)
 });
@@ -53,9 +60,14 @@ export const recommendationRepository = {
          budget,
          companion,
          transport_mode,
-         status
+         status,
+         course_title,
+         course_duration_minutes,
+         course_congestion,
+         course_description,
+         course_estimated_budget
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         input.userId,
@@ -65,11 +77,67 @@ export const recommendationRepository = {
         input.budget ?? null,
         input.companion ?? null,
         input.transportMode ?? null,
-        input.status ?? "pending"
+        input.status ?? "pending",
+        input.courseTitle ?? null,
+        input.courseDurationMinutes ?? null,
+        input.courseCongestion ?? null,
+        input.courseDescription ?? null,
+        input.courseEstimatedBudget ?? null
       ]
     );
 
     return mapRecommendationRequest(result.rows[0]);
+  },
+
+  async updateRequestStatus(
+    id: number,
+    status: RecommendationRequest["status"]
+  ): Promise<RecommendationRequest | null> {
+    const result = await db.query(
+      `UPDATE recommendation_requests
+          SET status = $2,
+              updated_at = now()
+        WHERE id = $1
+        RETURNING *`,
+      [id, status]
+    );
+
+    return result.rowCount ? mapRecommendationRequest(result.rows[0]) : null;
+  },
+
+  async getRequestById(id: number): Promise<RecommendationRequest | null> {
+    const result = await db.query(`SELECT * FROM recommendation_requests WHERE id = $1`, [id]);
+    return result.rowCount ? mapRecommendationRequest(result.rows[0]) : null;
+  },
+
+  async listRequestsByUser(
+    userId: number,
+    params: { page?: number; pageSize?: number }
+  ): Promise<RecommendationRequest[]> {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.max(1, Math.min(params.pageSize ?? 20, 100));
+    const result = await db.query(
+      `SELECT *
+         FROM recommendation_requests
+        WHERE user_id = $1
+        ORDER BY created_at DESC, id DESC
+        LIMIT $2
+       OFFSET $3`,
+      [userId, pageSize, (page - 1) * pageSize]
+    );
+
+    return result.rows.map(mapRecommendationRequest);
+  },
+
+  async countRequestsByUser(userId: number): Promise<number> {
+    const result = await db.query(
+      `SELECT count(*)::int AS total
+         FROM recommendation_requests
+        WHERE user_id = $1`,
+      [userId]
+    );
+
+    return Number(result.rows[0]?.total ?? 0);
   },
 
   async createItems(items: CreateRecommendationItemInput[]): Promise<RecommendationItem[]> {
@@ -139,6 +207,18 @@ export const recommendationRepository = {
     return mapSavedCourse(result.rows[0]);
   },
 
+  async getSavedCourse(userId: number, requestId: number): Promise<SavedCourse | null> {
+    const result = await db.query(
+      `SELECT *
+         FROM saved_courses
+        WHERE user_id = $1
+          AND request_id = $2`,
+      [userId, requestId]
+    );
+
+    return result.rowCount ? mapSavedCourse(result.rows[0]) : null;
+  },
+
   async removeSavedCourse(userId: number, requestId: number): Promise<boolean> {
     const result = await db.query(
       `DELETE FROM saved_courses
@@ -150,15 +230,33 @@ export const recommendationRepository = {
     return (result.rowCount ?? 0) > 0;
   },
 
-  async listSavedCourses(userId: number): Promise<SavedCourse[]> {
+  async listSavedCourses(
+    userId: number,
+    params: { page?: number; pageSize?: number } = {}
+  ): Promise<SavedCourse[]> {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.max(1, Math.min(params.pageSize ?? 10, 50));
     const result = await db.query(
       `SELECT *
          FROM saved_courses
         WHERE user_id = $1
-        ORDER BY saved_at DESC`,
-      [userId]
+        ORDER BY saved_at DESC
+        LIMIT $2
+       OFFSET $3`,
+      [userId, pageSize, (page - 1) * pageSize]
     );
 
     return result.rows.map(mapSavedCourse);
+  },
+
+  async countSavedCourses(userId: number): Promise<number> {
+    const result = await db.query(
+      `SELECT count(*)::int AS total
+         FROM saved_courses
+        WHERE user_id = $1`,
+      [userId]
+    );
+
+    return Number(result.rows[0]?.total ?? 0);
   }
 };
