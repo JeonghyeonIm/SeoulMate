@@ -36,6 +36,7 @@ const LIVING_POPULATION_LIST_URL =
   "https://data.seoul.go.kr/dataList/datasetView.do?currentPageNo=&infId=OA-14991&searchKey=&searchValue=&serviceKind=1&srvType=F";
 const SEOUL_DATA_FILE_DOWNLOAD_URL =
   "https://datafile.seoul.go.kr/bigfile/iot/inf/nio_download.do?&useCache=false";
+const FETCH_TIMEOUT_MS = 3000;
 
 const htmlEntityMap: Record<string, string> = {
   "&amp;": "&",
@@ -59,8 +60,28 @@ export const stripHtml = (value: string): string =>
     .replace(/[ \t]{2,}/g, " ")
     .trim();
 
+const fetchWithTimeout = async (url: string, init?: RequestInit): Promise<Response> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("서울 열린데이터 요청 시간이 초과되었습니다.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 const fetchText = async (url: string, init?: RequestInit): Promise<string> => {
-  const response = await fetch(url, init);
+  const response = await fetchWithTimeout(url, init);
 
   if (!response.ok) {
     throw new Error(`Request failed (${response.status}) for ${url}`);
@@ -70,7 +91,7 @@ const fetchText = async (url: string, init?: RequestInit): Promise<string> => {
 };
 
 const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(url, init);
+  const response = await fetchWithTimeout(url, init);
 
   if (!response.ok) {
     throw new Error(`Request failed (${response.status}) for ${url}`);
@@ -230,7 +251,7 @@ export const seoulOpenDataClient = {
       infSeq: "3"
     });
 
-    const csvResponse = await fetch(SEOUL_DATA_FILE_DOWNLOAD_URL, {
+    const csvResponse = await fetchWithTimeout(SEOUL_DATA_FILE_DOWNLOAD_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
@@ -272,7 +293,7 @@ export const seoulOpenDataClient = {
       infSeq: "3"
     });
 
-    const response = await fetch(SEOUL_DATA_FILE_DOWNLOAD_URL, {
+    const response = await fetchWithTimeout(SEOUL_DATA_FILE_DOWNLOAD_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: formData.toString()

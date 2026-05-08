@@ -1,6 +1,7 @@
 import { env } from "../config/env";
 
 const BASE_URL = "https://apihub.kma.go.kr/api/typ02/openApi";
+const FETCH_TIMEOUT_MS = 3000;
 
 interface KmaResponse<T> {
   response: {
@@ -9,6 +10,23 @@ interface KmaResponse<T> {
   };
 }
 
+const fetchWithTimeout = async (url: string): Promise<Response> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("기상청 API 요청 시간이 초과되었습니다.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 const fetchKma = async <T>(path: string, params: Record<string, string>): Promise<T[]> => {
   if (!env.KMA_API_KEY) {
     throw new Error("KMA_API_KEY is required");
@@ -16,7 +34,7 @@ const fetchKma = async <T>(path: string, params: Record<string, string>): Promis
 
   const qs = new URLSearchParams({ ...params, authKey: env.KMA_API_KEY, dataType: "JSON" });
   const url = `${BASE_URL}/${path}?${qs}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
 
   if (!res.ok) {
     throw new Error(`KMA API request failed (${res.status}): ${path}`);

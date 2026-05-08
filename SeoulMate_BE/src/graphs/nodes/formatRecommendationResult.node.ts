@@ -13,6 +13,7 @@ export const formatRecommendationResultNode = async (
     context: state.contextData,
     validation: state.validation,
     riskNotices: state.riskNotices ?? [],
+    warnings: state.warnings ?? [],
     candidateCount: state.candidatePlaces?.length ?? 0
   }
 });

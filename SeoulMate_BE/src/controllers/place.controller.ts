@@ -32,15 +32,11 @@ export const searchPlaces = async (
   }
 };
 
-export const getPlace = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const getPlace = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const placeId = parsePositiveInt(req.params.placeId, 0);
     if (!placeId) {
-      throw new ApiError(400, "placeId must be a positive integer");
+      throw new ApiError(400, "placeId 값은 양의 정수여야 합니다.");
     }
 
     res.status(200).json(await placeService.getPlace(placeId));

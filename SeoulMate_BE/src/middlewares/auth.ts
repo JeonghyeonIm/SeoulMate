@@ -32,13 +32,13 @@ export const authenticate = async (
   try {
     const token = extractBearerToken(req);
     if (!token) {
-      throw new ApiError(401, "Authorization bearer token is required");
+      throw new ApiError(401, "인증 토큰이 필요합니다.");
     }
 
     const payload = verifyToken(token, "access");
     const user = await userRepository.getById(Number(payload.sub));
     if (!user) {
-      throw new ApiError(401, "User not found");
+      throw new ApiError(401, "인증된 사용자를 찾을 수 없습니다.");
     }
 
     req.user = {
@@ -48,7 +48,7 @@ export const authenticate = async (
     };
     next();
   } catch (error) {
-    next(error instanceof ApiError ? error : new ApiError(401, "Invalid token"));
+    next(error instanceof ApiError ? error : new ApiError(401, "유효하지 않은 토큰입니다."));
   }
 };
 

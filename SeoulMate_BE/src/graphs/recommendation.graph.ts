@@ -52,5 +52,6 @@ export const runRecommendationGraph = async (
   graph.invoke({
     rawInput: input,
     parsedRequest,
+    warnings: [],
     errors: []
   });

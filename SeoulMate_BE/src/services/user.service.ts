@@ -18,7 +18,7 @@ export const userService = {
   async getUser(id: number): Promise<UserProfile> {
     const user = await userRepository.getById(id);
     if (!user) {
-      throw new ApiError(404, "User not found");
+      throw new ApiError(404, "사용자를 찾을 수 없습니다.");
     }
 
     return user;
@@ -39,7 +39,7 @@ export const userService = {
   async updatePreferences(id: number, input: UpdatePreferencesInput): Promise<UserProfile> {
     const user = await userRepository.updatePreferences(id, input);
     if (!user) {
-      throw new ApiError(404, "User not found");
+      throw new ApiError(404, "사용자를 찾을 수 없습니다.");
     }
 
     return user;
