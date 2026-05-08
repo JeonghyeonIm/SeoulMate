@@ -379,3 +379,136 @@ JWT_SECRET=          # 프로덕션용 랜덤 시크릿 필수
 | `src/controllers/auth.controller.ts` | OAuth 컨트롤러 추가, 응답 body 전면 수정 |
 | `src/routes/auth.routes.ts` | `/kakao`, `/kakao/callback`, `/google`, `/google/callback` 라우트 추가 |
 | `src/config/env.ts` | OAuth 관련 환경변수 6개 추가 |
+
+---
+
+# 4차 작업 — 로컬 인증 테스트 완료 및 프로덕션 배포 가이드
+
+## 테스트 결과 (localhost:3000)
+
+| 인증 방식 | 결과 | 비고 |
+| --------- | ---- | ---- |
+| 이메일 회원가입 (`POST /api/auth/signup`) | 성공 | DB에 유저 생성 확인 |
+| 이메일 로그인 (`POST /api/auth/login`) | 성공 | accessToken/refreshToken 정상 발급 |
+| 구글 OAuth | 성공 | 자동 회원가입 + 토큰 발급 확인 |
+| 카카오 OAuth | 성공 | 자동 회원가입 + 토큰 발급 확인 |
+
+---
+
+## OAuth 흐름 정리 (프론트 연동 기준)
+
+### 이메일 로그인 — 일반 fetch/axios 호출
+
+```typescript
+const res = await fetch('/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password })
+})
+const { accessToken, refreshToken } = await res.json()
+```
+
+### 카카오/구글 OAuth — 브라우저 페이지 이동
+
+```typescript
+// fetch가 아닌 브라우저 이동으로 시작
+window.location.href = 'https://api.seoulmate.my/api/auth/kakao'
+window.location.href = 'https://api.seoulmate.my/api/auth/google'
+```
+
+**전체 흐름:**
+
+1. 프론트에서 `window.location.href`로 백엔드 OAuth 시작 엔드포인트 이동
+2. 백엔드 → 카카오/구글 로그인 페이지로 302 리다이렉트
+3. 사용자 로그인 완료
+4. 카카오/구글 → 백엔드 콜백 URL(`/api/auth/kakao/callback`)로 인가 코드 전달
+5. 백엔드에서 인가 코드로 access token 교환 → 사용자 정보 조회 → 자동 회원가입/로그인
+6. 백엔드 → 프론트 `{FRONTEND_URL}/auth/callback?accessToken=...&refreshToken=...` 로 리다이렉트
+7. 프론트에서 URL 파라미터에서 토큰 꺼내 저장
+
+---
+
+## 카카오 개발자 콘솔 설정 주의사항
+
+| 항목 | 설정 |
+| ---- | ---- |
+| 플랫폼 → Web → 사이트 도메인 | `http://localhost:3000` (개발), `https://api.seoulmate.my` (운영) |
+| 카카오 로그인 활성화 | ON |
+| Redirect URI | `http://localhost:3000/api/auth/kakao/callback` (개발), `https://api.seoulmate.my/api/auth/kakao/callback` (운영) |
+| 동의항목 → 닉네임 | 필수 동의 |
+| 동의항목 → 이메일 | 필수 동의 (없으면 로그인 실패) |
+| 보안 → Client Secret | 사용 시 `.env`의 `KAKAO_CLIENT_SECRET`에 실제 값 필요 |
+| 앱 설정 → 보안 → 서비스 앱 IP 허용 | 사용 안 함 권장 (개발 중 IP 고정 불가) |
+| 앱 설정 → 팀 관리 | 개발 단계에서는 테스트 계정을 팀원으로 등록해야 함 |
+
+---
+
+## EC2 프로덕션 배포 절차 (`api.seoulmate.my` → 13.209.103.176)
+
+### 1. 기본 패키지 설치
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+sudo npm install -g pm2
+sudo apt install -y nginx certbot python3-certbot-nginx
+```
+
+### 2. Nginx 설정
+
+```nginx
+# /etc/nginx/sites-available/api.seoulmate.my
+server {
+    listen 80;
+    server_name api.seoulmate.my;
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/api.seoulmate.my /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 3. HTTPS 인증서
+
+```bash
+sudo certbot --nginx -d api.seoulmate.my
+```
+
+### 4. 코드 배포 및 실행
+
+```bash
+git clone {레포 주소}
+cd SeoulMate_BE
+npm install
+npm run build
+pm2 start dist/server.js --name "seoulmate-be"
+pm2 save && pm2 startup
+```
+
+### 5. AWS EC2 보안 그룹 인바운드 규칙 필수
+
+| 유형 | 포트 | 소스 |
+| ---- | ---- | ---- |
+| HTTP | 80 | 0.0.0.0/0 |
+| HTTPS | 443 | 0.0.0.0/0 |
+
+---
+
+## 프로덕션 `.env` 설정
+
+```env
+NODE_ENV=production
+PORT=3000
+FRONTEND_URL=https://www.seoulmate.my
+KAKAO_REDIRECT_URI=https://api.seoulmate.my/api/auth/kakao/callback
+GOOGLE_REDIRECT_URI=https://api.seoulmate.my/api/auth/google/callback
+JWT_SECRET=<충분히 긴 랜덤 문자열>
+```
+
+배포 후 카카오/구글 콘솔에 운영용 Redirect URI 추가 필요.
