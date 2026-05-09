@@ -1,0 +1,42 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          REPO_URL: https://github.com/${{ github.repository }}.git
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: REPO_URL
+          script: |
+            set -e
+
+            REPO_DIR="$HOME/SeoulMate"
+
+            # 최초 배포: 레포 클론 / 이후: 최신 코드 pull
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone "$REPO_URL" "$REPO_DIR"
+            else
+              cd "$REPO_DIR"
+              git fetch origin main
+              git reset --hard origin/main
+            fi
+
+            cd "$REPO_DIR/SeoulMate_BE"
+
+            npm install
+            npm run build
+
+            # PM2로 재시작 (없으면 새로 시작)
+            pm2 reload seoulmate-be 2>/dev/null || pm2 start dist/server.js --name seoulmate-be
+            pm2 save
