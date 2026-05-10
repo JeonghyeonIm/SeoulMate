@@ -154,14 +154,27 @@ const normalizeCityData = (
 ): RecommendationContextData["cityData"] => {
   const population = firstRecord(payload.LIVE_PPLTN_STTS);
   const weather = firstRecord(payload.WEATHER_STTS);
+  const forecast = firstRecord(weather?.FCST24HOURS);
   const traffic =
     firstRecord(payload.ROAD_TRAFFIC_STTS) ??
     firstRecord((payload.ROAD_TRAFFIC_STTS as Record<string, unknown> | undefined)?.AVG_ROAD_DATA);
+  const precipitationType = readString(weather, ["PRECPT_TYPE"]);
+  const precipitationMessage = readString(weather, ["PCP_MSG"]);
 
   return {
     areaName: payload.AREA_NM ?? areaName,
     crowdLevel: readString(population, ["AREA_CONGEST_LVL", "AREA_CONGEST_MSG"]),
     weatherStatus: readString(weather, ["WEATHER_STTS", "PRECPT_TYPE", "PCP_MSG"]),
+    skyStatus:
+      precipitationType && precipitationType !== "없음"
+        ? precipitationType
+        : readString(forecast, ["SKY_STTS"]),
+    temperature: readNumber(weather, ["TEMP"]),
+    rainProbability: readNumber(forecast, ["RAIN_CHANCE"]),
+    weatherAlert:
+      precipitationMessage && precipitationType && precipitationType !== "없음"
+        ? precipitationMessage
+        : undefined,
     trafficStatus: readString(traffic, ["ROAD_TRAFFIC_IDX", "ROAD_MSG", "TRAFFIC_STTS"])
   };
 };
@@ -379,7 +392,7 @@ const summarizeUltraShortWeather = (
   return {
     source: "ultraShortTerm",
     targetDateTime,
-    rainProbability: precipitation || (rainAmount ?? 0) > 0 ? 70 : undefined,
+    rainProbability: precipitation || (rainAmount ?? 0) > 0 ? 70 : 0,
     skyStatus: precipitation ?? skyText(group.SKY),
     temperature: readNumber(group, ["T1H"])
   };
@@ -407,7 +420,9 @@ const summarizeCityDataWeather = (
 ): RecommendationContextData["weather"] => ({
   source: "cityData",
   targetDateTime,
-  skyStatus: cityData?.weatherStatus,
+  rainProbability: cityData?.rainProbability,
+  skyStatus: cityData?.skyStatus ?? cityData?.weatherStatus,
+  temperature: cityData?.temperature,
   weatherAlert: cityData ? undefined : "서울 실시간 도시데이터를 조회하지 못했습니다."
 });
 

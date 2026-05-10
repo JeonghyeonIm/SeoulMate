@@ -365,19 +365,24 @@ Authorization: Bearer <access_token>
 
 ```json
 {
+  "recommendedCourseId": "crs_12",
   "courses": [
     {
       "id": "crs_12",
       "title": "성수 조용한 데이트 코스",
       "description": "이동 부담이 낮은 차분한 코스입니다.",
+      "recommendationRank": 1,
+      "recommendationType": "best",
+      "isRecommended": true,
       "totalCost": 36000,
       "duration": 240,
       "congestion": "medium",
       "weather": {
-        "source": "shortTerm",
-        "rainProbability": 20,
         "skyStatus": "맑음",
-        "temperature": 18
+        "temperature": 18,
+        "rainProbability": 20,
+        "weatherAlert": null,
+        "source": "short-term"
       },
       "places": [
         {
@@ -388,14 +393,37 @@ Authorization: Bearer <access_token>
           "order": 1
         }
       ]
+    },
+    {
+      "id": "crs_13",
+      "title": "성수 실내 데이트 코스",
+      "description": "날씨나 혼잡도 리스크를 낮춘 실내 중심 코스입니다.",
+      "recommendationRank": 2,
+      "recommendationType": "indoor",
+      "isRecommended": false,
+      "totalCost": 32000,
+      "duration": 210,
+      "congestion": "medium",
+      "weather": {
+        "source": "short-term",
+        "skyStatus": "맑음",
+        "temperature": 18,
+        "rainProbability": 20,
+        "weatherAlert": null
+      },
+      "places": []
     }
   ]
 }
 ```
 
 - 응답 필드:
-  - `courses`: 추천 코스 배열
+  - `courses`: 추천 코스 배열. 기본 3개를 반환하고, 후보가 충분하면 최대 4개까지 반환합니다
+  - `recommendedCourseId`: 서버가 가장 추천하는 코스 ID. 같은 코스는 `courses[].isRecommended: true`로도 표시됩니다
+  - `courses[].recommendationRank`: 추천 순위. 1번이 가장 추천하는 코스입니다
+  - `courses[].recommendationType`: 추천 성격. `best`, `balanced`, `indoor`, `low-budget`, `short-walk`
   - `courses[].congestion`: 행정동 단위 서울 생활인구 통계 기반 혼잡도. 산출 불가 시 `unknown`
+  - `courses[].weather`: 모든 날씨 source에서 `{ source, skyStatus, temperature, rainProbability, weatherAlert }` 형식으로 반환합니다
   - `warnings` (optional): 외부 API 장애 등으로 일부 정보가 누락된 경우에만 포함되는 경고 메시지 배열
 
 예시: 날씨 API timeout 발생 시

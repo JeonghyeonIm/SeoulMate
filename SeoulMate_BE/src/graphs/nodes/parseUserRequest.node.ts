@@ -38,6 +38,22 @@ const requestSchema = {
   ]
 };
 
+const buildParsingInstructions =
+  (): string => `사용자 입력을 서울 데이트 코스 추천 조건으로 구조화하세요.
+- 내부적으로만 조건을 단계별로 점검하고, 추론 과정은 출력하지 마세요.
+- 장소를 새로 만들지 말고 지역, 예산, 시간, 분위기, 목적, 선호 카테고리 조건만 추출하세요.
+- "카페", "전시", "맛집"처럼 특정 카테고리가 언급되어도 preferredCategories에 한 종류만 반복하지 말고, 데이트 코스에 필요한 보조 카테고리를 1~2개 함께 넣으세요.
+- 첫 만남/어색하지 않은/부담 적은 요청은 mood에 "조용한", "부담 적은"을 우선 반영하세요.
+- 오늘 기준 날짜는 ${getCurrentKstDateLabel()} KST입니다. dateTime은 날짜/시간 단서가 있을 때 이 기준 날짜로 ISO-8601 형식에 가깝게 반환하세요.
+
+예시 1
+입력: "성수에서 3만 원 이하로 어색하지 않은 첫 데이트 코스 추천해줘"
+출력: {"region":"성수","budget":30000,"dateTime":null,"durationHours":3,"mood":["조용한","부담 적은"],"purpose":"첫 데이트","preferredCategories":["카페","문화공간","산책","음식점"]}
+
+예시 2
+입력: "비 오는 날 홍대에서 실내 위주로 4시간 데이트"
+출력: {"region":"홍대","budget":null,"dateTime":null,"durationHours":4,"mood":["실내","조용한"],"purpose":"데이트","preferredCategories":["카페","문화공간","음식점"]}`;
+
 const compactString = (value: string | null | undefined): string | undefined => {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
@@ -270,7 +286,7 @@ export const parseUserRequestNode = async (
     const parsed = await openaiClient.createJsonResponse<ParsedRequestFromAi>({
       schemaName: "seoulmate_recommendation_request",
       schema: requestSchema,
-      instructions: `사용자 입력을 서울 데이트 코스 추천 조건으로 구조화하세요. 장소를 새로 만들지 말고 조건만 추출하세요. 오늘 기준 날짜는 ${getCurrentKstDateLabel()} KST입니다. dateTime은 날짜/시간 단서가 있을 때 이 기준 날짜로 ISO-8601 형식에 가깝게 반환하세요.`,
+      instructions: buildParsingInstructions(),
       input: state.rawInput
     });
     const cleaned = cleanParsedRequest(parsed);

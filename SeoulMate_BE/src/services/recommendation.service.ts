@@ -61,14 +61,27 @@ export interface CoursePlaceResponse {
   reason?: string;
 }
 
+export interface WeatherResponse {
+  source: "citydata" | "ultra-short-term" | "short-term" | "medium-term" | "unavailable";
+  skyStatus: string | null;
+  temperature: number | null;
+  rainProbability: number | null;
+  weatherAlert: string | null;
+}
+
+export type RecommendationType = "best" | "balanced" | "indoor" | "low-budget" | "short-walk";
+
 export interface CourseResponse {
   id: string;
   title: string;
   description?: string;
+  recommendationRank?: number;
+  recommendationType?: RecommendationType;
+  isRecommended?: boolean;
   totalCost: number;
   duration: number;
   congestion: CongestionLevel;
-  weather?: RecommendationContextData["weather"];
+  weather: WeatherResponse;
   places: CoursePlaceResponse[];
 }
 
@@ -81,8 +94,19 @@ export interface PagedCoursesResponse {
 
 export interface RecommendCoursesResponse {
   courses: CourseResponse[];
+  recommendedCourseId?: string;
   warnings?: string[];
 }
+
+type InternalWeather = NonNullable<RecommendationContextData["weather"]>;
+
+type RecommendationVariant = {
+  type: RecommendationType;
+  queryHint: string;
+  vibes: string[];
+  budgetRatio?: number;
+  purposeHint?: string;
+};
 
 export interface CourseDetail {
   request: RecommendationRequest;
@@ -306,7 +330,144 @@ const resolveCourseCongestion = (context?: RecommendationContextData): Congestio
 const courseDuration = (places: RecommendationCoursePlace[]): number =>
   places.reduce((sum, place) => sum + place.estimatedTimeMinute + (place.moveTimeMinute ?? 0), 0);
 
-const toCourseResponseFromResult = (result: RecommendationResult): CourseResponse | null => {
+const normalizeWeatherSource = (
+  source?: InternalWeather["source"] | string | null
+): WeatherResponse["source"] => {
+  if (source === "cityData" || source === "citydata") {
+    return "citydata";
+  }
+
+  if (source === "ultraShortTerm" || source === "ultra-short-term") {
+    return "ultra-short-term";
+  }
+
+  if (source === "shortTerm" || source === "short-term") {
+    return "short-term";
+  }
+
+  if (source === "mediumTerm" || source === "medium-term") {
+    return "medium-term";
+  }
+
+  return "unavailable";
+};
+
+const nullableNumber = (value: number | null | undefined): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+
+const toWeatherResponse = (weather?: RecommendationContextData["weather"]): WeatherResponse => ({
+  source: normalizeWeatherSource(weather?.source),
+  skyStatus: weather?.skyStatus ?? null,
+  temperature: nullableNumber(weather?.temperature),
+  rainProbability: nullableNumber(weather?.rainProbability),
+  weatherAlert: weather?.weatherAlert ?? null
+});
+
+const weatherSnapshotByRequestId = new Map<number, WeatherResponse>();
+
+const recommendationVariants: RecommendationVariant[] = [
+  {
+    type: "best",
+    queryHint: "Build the most date-friendly course with a natural route and mixed place types.",
+    vibes: []
+  },
+  {
+    type: "balanced",
+    queryHint:
+      "Build a balanced course with cafe, culture or walk, and meal. Avoid repeating the same category.",
+    vibes: ["balanced"],
+    purposeHint: "balanced date course"
+  },
+  {
+    type: "indoor",
+    queryHint:
+      "Build an indoor-friendly course for bad weather or high congestion. Prefer exhibitions, culture spaces, and calm cafes.",
+    vibes: ["indoor", "calm"],
+    purposeHint: "indoor alternative date course"
+  },
+  {
+    type: "low-budget",
+    queryHint:
+      "Build a lower-budget course with short travel and affordable places while keeping the date atmosphere.",
+    vibes: ["low-budget", "casual"],
+    budgetRatio: 0.85,
+    purposeHint: "low budget date course"
+  },
+  {
+    type: "short-walk",
+    queryHint: "Build a course with the shortest reasonable movement path and low walking fatigue.",
+    vibes: ["short-walk", "comfortable"],
+    purposeHint: "short movement date course"
+  }
+];
+
+const uniqueStringArray = (items: string[]): string[] => [...new Set(items.filter(Boolean))];
+
+const appendHint = (value: string | undefined, hint: string): string =>
+  [value?.trim(), hint].filter(Boolean).join(" / ");
+
+const buildVariantPayload = (
+  payload: RecommendCoursePayload,
+  variant: RecommendationVariant
+): RecommendCoursePayload => {
+  const next: RecommendCoursePayload = {
+    ...payload,
+    vibes: uniqueStringArray([...(payload.vibes ?? []), ...variant.vibes])
+  };
+
+  if (typeof payload.query === "string" || typeof payload.input !== "string") {
+    next.query = appendHint(payload.query ?? payload.input, variant.queryHint);
+  } else {
+    next.input = appendHint(payload.input, variant.queryHint);
+  }
+
+  if (
+    variant.budgetRatio &&
+    typeof payload.budget === "number" &&
+    Number.isFinite(payload.budget)
+  ) {
+    next.budget = Math.max(10000, Math.round(payload.budget * variant.budgetRatio));
+  }
+
+  if (variant.purposeHint) {
+    next.purpose = appendHint(payload.purpose, variant.purposeHint);
+  }
+
+  return next;
+};
+
+const courseSignature = (course: CourseResponse): string =>
+  course.places
+    .map((place) => place.id)
+    .sort()
+    .join("|");
+
+const congestionPenalty: Record<CongestionLevel, number> = {
+  low: 0,
+  medium: 4,
+  high: 12,
+  unknown: 3
+};
+
+const scoreApiCourse = (course: CourseResponse, budget?: number): number => {
+  const budgetPenalty =
+    typeof budget === "number" && budget > 0 ? Math.max(0, course.totalCost - budget) / 1000 : 0;
+  const durationPenalty = course.duration > 240 ? (course.duration - 240) / 8 : 0;
+  const diversityBonus = Math.min(course.places.length, 4) * 3;
+
+  return (
+    100 + diversityBonus - budgetPenalty - durationPenalty - congestionPenalty[course.congestion]
+  );
+};
+
+const toCourseResponseFromResult = (
+  result: RecommendationResult,
+  meta?: {
+    recommendationRank?: number;
+    recommendationType?: RecommendationType;
+    isRecommended?: boolean;
+  }
+): CourseResponse | null => {
   if (!result.course) {
     return null;
   }
@@ -315,10 +476,13 @@ const toCourseResponseFromResult = (result: RecommendationResult): CourseRespons
     id: result.requestId ? `crs_${result.requestId}` : "crs_preview",
     title: result.course.title,
     description: result.explanation?.summary ?? result.explanation?.reason,
+    recommendationRank: meta?.recommendationRank,
+    recommendationType: meta?.recommendationType,
+    isRecommended: meta?.isRecommended,
     totalCost: result.course.estimatedBudget,
     duration: courseDuration(result.course.places),
     congestion: resolveCourseCongestion(result.context),
-    weather: result.context?.weather,
+    weather: toWeatherResponse(result.context?.weather),
     places: result.course.places.map((place) => ({
       id: `plc_${place.placeId}`,
       name: place.title,
@@ -367,6 +531,7 @@ const toCourseResponseFromDetail = (detail: CourseDetail): CourseResponse => {
     totalCost,
     duration,
     congestion: toCongestion(detail.request.courseCongestion),
+    weather: weatherSnapshotByRequestId.get(detail.request.id) ?? toWeatherResponse(),
     places: detail.items.map((item, index) => {
       const cost = item.estimatedCost ?? 0;
       return {
@@ -413,6 +578,7 @@ export const recommendationService = {
         courseEstimatedBudget: state.course?.estimatedBudget ?? null
       });
       requestId = request.id;
+      weatherSnapshotByRequestId.set(request.id, toWeatherResponse(state.contextData?.weather));
 
       if (state.course?.places.length) {
         await recommendationRepository.createItems(
@@ -459,14 +625,53 @@ export const recommendationService = {
     payload: RecommendCoursePayload,
     userId: number
   ): Promise<RecommendCoursesResponse> {
-    const result = await this.recommendCourse(payload, userId);
-    const course = toCourseResponseFromResult(result);
+    const firstResult = await this.recommendCourse(
+      buildVariantPayload(payload, recommendationVariants[0]),
+      userId
+    );
+    const targetCourseCount = firstResult.candidateCount >= 30 ? 4 : 3;
+    const results: Array<{ result: RecommendationResult; type: RecommendationType }> = [
+      { result: firstResult, type: recommendationVariants[0].type }
+    ];
+
+    for (const variant of recommendationVariants.slice(1, targetCourseCount)) {
+      const result = await this.recommendCourse(buildVariantPayload(payload, variant), userId);
+      results.push({ result, type: variant.type });
+    }
+
+    const warnings = uniqueStringArray(results.flatMap(({ result }) => result.warnings));
+    const seenSignatures = new Set<string>();
+    const courses = results
+      .map(({ result, type }) => toCourseResponseFromResult(result, { recommendationType: type }))
+      .filter((course): course is CourseResponse => Boolean(course))
+      .filter((course) => {
+        const signature = courseSignature(course);
+        if (!signature || seenSignatures.has(signature)) {
+          return false;
+        }
+        seenSignatures.add(signature);
+        return true;
+      })
+      .sort(
+        (left, right) =>
+          scoreApiCourse(right, payload.budget) - scoreApiCourse(left, payload.budget)
+      )
+      .map((course, index) => ({
+        ...course,
+        recommendationRank: index + 1,
+        isRecommended: index === 0
+      }));
+
     const response: RecommendCoursesResponse = {
-      courses: course ? [course] : []
+      courses
     };
 
-    if (result.warnings.length) {
-      response.warnings = result.warnings;
+    if (courses[0]) {
+      response.recommendedCourseId = courses[0].id;
+    }
+
+    if (warnings.length) {
+      response.warnings = warnings;
     }
 
     return response;
