@@ -15,6 +15,18 @@ type ParsedRequestFromAi = {
   preferredCategories: string[];
 };
 
+const ALLOWED_MOODS = [
+  "조용한",
+  "힙한",
+  "낭만적인",
+  "로맨틱",
+  "활기찬",
+  "고즈넉한",
+  "현대적인",
+  "감성적인",
+  "자연친화적"
+];
+
 const requestSchema = {
   type: "object",
   additionalProperties: false,
@@ -43,21 +55,52 @@ const buildParsingInstructions =
 - 내부적으로만 조건을 단계별로 점검하고, 추론 과정은 출력하지 마세요.
 - 장소를 새로 만들지 말고 지역, 예산, 시간, 분위기, 목적, 선호 카테고리 조건만 추출하세요.
 - "카페", "전시", "맛집"처럼 특정 카테고리가 언급되어도 preferredCategories에 한 종류만 반복하지 말고, 데이트 코스에 필요한 보조 카테고리를 1~2개 함께 넣으세요.
-- 첫 만남/어색하지 않은/부담 적은 요청은 mood에 "조용한", "부담 적은"을 우선 반영하세요.
+- mood는 반드시 다음 값 안에서만 고르세요: ${ALLOWED_MOODS.join(", ")}.
+- 첫 만남/어색하지 않은/부담 적은 요청은 mood에 "조용한", "고즈넉한"을 우선 반영하세요.
+- 실내/비 오는 날 요청은 mood에 "조용한" 또는 "감성적인"을 반영하고, preferredCategories에 "카페", "문화공간"을 우선 반영하세요.
 - 오늘 기준 날짜는 ${getCurrentKstDateLabel()} KST입니다. dateTime은 날짜/시간 단서가 있을 때 이 기준 날짜로 ISO-8601 형식에 가깝게 반환하세요.
 
 예시 1
 입력: "성수에서 3만 원 이하로 어색하지 않은 첫 데이트 코스 추천해줘"
-출력: {"region":"성수","budget":30000,"dateTime":null,"durationHours":3,"mood":["조용한","부담 적은"],"purpose":"첫 데이트","preferredCategories":["카페","문화공간","산책","음식점"]}
+출력: {"region":"성수","budget":30000,"dateTime":null,"durationHours":3,"mood":["조용한","고즈넉한"],"purpose":"첫 데이트","preferredCategories":["카페","문화공간","산책","음식점"]}
 
 예시 2
 입력: "비 오는 날 홍대에서 실내 위주로 4시간 데이트"
-출력: {"region":"홍대","budget":null,"dateTime":null,"durationHours":4,"mood":["실내","조용한"],"purpose":"데이트","preferredCategories":["카페","문화공간","음식점"]}`;
+출력: {"region":"홍대","budget":null,"dateTime":null,"durationHours":4,"mood":["조용한","감성적인"],"purpose":"데이트","preferredCategories":["카페","문화공간","음식점"]}`;
 
 const compactString = (value: string | null | undefined): string | undefined => {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
 };
+
+const normalizeMood = (value: string): string | undefined => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (ALLOWED_MOODS.includes(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.includes("로맨틱") || normalized.includes("로맨스")) {
+    return "로맨틱";
+  }
+
+  if (normalized.includes("낭만")) {
+    return "낭만적인";
+  }
+
+  if (normalized.includes("자연") || normalized.includes("숲") || normalized.includes("야외")) {
+    return "자연친화적";
+  }
+
+  return ALLOWED_MOODS.find((mood) => normalized.includes(mood.replace(/적인$|한$|적$/g, "")));
+};
+
+const normalizeMoods = (values: string[]): string[] => [
+  ...new Set(values.map(normalizeMood).filter((mood): mood is string => Boolean(mood)))
+];
 
 const cleanParsedRequest = (value: ParsedRequestFromAi): ParsedRecommendationRequest => ({
   region: compactString(value.region),
@@ -68,7 +111,7 @@ const cleanParsedRequest = (value: ParsedRequestFromAi): ParsedRecommendationReq
     typeof value.durationHours === "number" && value.durationHours > 0
       ? value.durationHours
       : undefined,
-  mood: value.mood.map((item) => item.trim()).filter(Boolean),
+  mood: normalizeMoods(value.mood),
   purpose: compactString(value.purpose),
   preferredCategories: value.preferredCategories.map((item) => item.trim()).filter(Boolean)
 });
@@ -216,14 +259,26 @@ const parseRegion = (input: string): string | undefined => {
 };
 
 const parseMoods = (input: string): string[] => {
-  const moodKeywords = ["조용한", "부담 없는", "감성적인", "활기찬", "로맨틱한", "실내", "야외"];
-  const moods = moodKeywords.filter((keyword) => input.includes(keyword.replace("한", "")));
+  const moodKeywords = [
+    "조용한",
+    "힙한",
+    "낭만적인",
+    "로맨틱",
+    "활기찬",
+    "고즈넉한",
+    "현대적인",
+    "감성적인",
+    "자연친화적"
+  ];
+  const moods = moodKeywords.filter((keyword) =>
+    input.includes(keyword.replace(/적인$|한$|적$/g, ""))
+  );
 
   if ((input.includes("비") && input.includes("안 맞")) || input.includes("실내")) {
-    moods.push("실내");
+    moods.push("조용한", "감성적인");
   }
 
-  return [...new Set(moods)];
+  return normalizeMoods(moods);
 };
 
 const parsePreferredCategories = (input: string): string[] => {

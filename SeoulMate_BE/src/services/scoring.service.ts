@@ -131,13 +131,36 @@ const scoreMood = (place: CandidatePlace, request?: ParsedRecommendationRequest)
 
     if (mood.includes("조용") && (isIndoorPlace(place) || isOutdoorPlace(place))) {
       score += (SCORE_WEIGHT.mood / moods.length) * 0.85;
-    } else if (mood.includes("부담") && estimatePlaceCost(place) <= 10000) {
+    } else if (
+      mood.includes("힙") &&
+      includesAny(text, ["거리", "카페", "편집샵", "팝업", "전시", "문화", "복합", "성수", "홍대"])
+    ) {
+      score += (SCORE_WEIGHT.mood / moods.length) * 0.9;
+    } else if (
+      (mood.includes("낭만") || mood.includes("로맨틱")) &&
+      includesAny(text, ["야경", "한강", "공원", "산책", "전망", "카페", "문화", "데이트"])
+    ) {
+      score += (SCORE_WEIGHT.mood / moods.length) * 0.9;
+    } else if (
+      mood.includes("고즈넉") &&
+      includesAny(text, ["궁", "한옥", "북촌", "서촌", "공원", "산책", "문화", "박물관", "미술관"])
+    ) {
+      score += (SCORE_WEIGHT.mood / moods.length) * 0.9;
+    } else if (
+      mood.includes("현대") &&
+      includesAny(text, ["전시", "미술관", "디자인", "복합", "문화", "현대", "ddp", "공간"])
+    ) {
       score += (SCORE_WEIGHT.mood / moods.length) * 0.9;
     } else if (
       mood.includes("감성") &&
       includesAny(text, ["카페", "전시", "문화", "공간", "야경"])
     ) {
       score += (SCORE_WEIGHT.mood / moods.length) * 0.85;
+    } else if (
+      mood.includes("자연친화") &&
+      includesAny(text, ["공원", "산책", "자연", "야외", "둘레길", "한강", "숲", "하천"])
+    ) {
+      score += (SCORE_WEIGHT.mood / moods.length) * 0.9;
     } else if (mood.includes("활기") && includesAny(text, ["거리", "맛집", "시장", "관광"])) {
       score += (SCORE_WEIGHT.mood / moods.length) * 0.8;
     } else {
