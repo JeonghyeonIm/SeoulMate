@@ -39,7 +39,6 @@ export interface AuthUser {
 export interface AuthResponseBody {
   user: AuthUser;
   accessToken: string;
-  refreshToken: string;
   tokenType: string;
   expiresIn: number;
 }
@@ -60,7 +59,6 @@ export interface AuthResponseBody {
     nickname: string;
   };
   accessToken: string;
-  refreshToken: string;
   tokenType: string;
   expiresIn: number;
 }
