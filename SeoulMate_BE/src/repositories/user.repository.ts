@@ -107,7 +107,7 @@ export const userRepository = {
       `UPDATE users
           SET preferred_region = COALESCE($2, preferred_region),
               vibes             = CASE WHEN $3::text[] IS NOT NULL THEN $3 ELSE vibes END,
-              budget            = CASE WHEN $4 IS NOT NULL THEN $4 ELSE budget END,
+              budget            = CASE WHEN $4::integer IS NOT NULL THEN $4::integer ELSE budget END,
               updated_at        = now()
         WHERE id = $1
         RETURNING ${COMMON_COLUMNS}`,
