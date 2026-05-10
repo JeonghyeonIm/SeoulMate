@@ -916,7 +916,7 @@ const buildVariantTitle = (
   };
 
   return type === "best"
-    ? `${region} GPT 추천 ${purpose} 코스`
+    ? `${region} AI 추천 ${purpose} 코스`
     : `${region} ${label[type]} ${purpose} 코스`;
 };
 
