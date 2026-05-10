@@ -240,6 +240,9 @@ const mapCandidate = (item: PublicDataset): CandidatePlace => ({
   metadata: item.metadata
 });
 
+const hasValidCoordinates = (place: CandidatePlace): boolean =>
+  Number.isFinite(place.latitude) && Number.isFinite(place.longitude);
+
 const resolveSourceDatasets = (request?: ParsedRecommendationRequest): string[] => {
   const categories = request?.preferredCategories ?? [];
   const selected = new Set<string>();
@@ -260,11 +263,11 @@ const buildKeywords = (request?: ParsedRecommendationRequest): string[] => [
   ...(request?.preferredCategories ?? [])
 ];
 
-const normalizeRegionText = (region: string): string =>
-  region.toLowerCase().replace(/\s+/g, "");
+const normalizeRegionText = (region: string): string => region.toLowerCase().replace(/\s+/g, "");
 
-const uniqueStrings = (items: string[]): string[] =>
-  [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+const uniqueStrings = (items: string[]): string[] => [
+  ...new Set(items.map((item) => item.trim()).filter(Boolean))
+];
 
 const resolveRegion = (region?: string): RegionResolution | undefined => {
   const rawRegion = region?.trim();
@@ -425,11 +428,15 @@ export const fetchCandidatePlacesNode = async (
       ...diverseRegionalCandidates,
       ...generalFallback,
       ...broadFallback
-    ]).map(mapCandidate);
+    ])
+      .map(mapCandidate)
+      .filter(hasValidCoordinates);
 
     return {
       candidatePlaces,
-      errors: candidatePlaces.length ? [] : ["No public_data candidates matched the request"]
+      errors: candidatePlaces.length
+        ? []
+        : ["No public_data candidates with coordinates matched the request"]
     };
   } catch (error) {
     return {
