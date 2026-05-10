@@ -475,10 +475,16 @@ const congestionPenalty: Record<CongestionLevel, number> = {
   unknown: 3
 };
 
-const scoreApiCourse = (course: CourseResponse, budget?: number): number => {
+const scoreApiCourse = (
+  course: CourseResponse,
+  budget?: number,
+  targetDurationHours?: number
+): number => {
   const budgetPenalty =
     typeof budget === "number" ? Math.max(0, course.totalCost - budget) / 1000 : 0;
-  const durationPenalty = course.duration > 240 ? (course.duration - 240) / 8 : 0;
+  const targetDurationMinute = (targetDurationHours ?? 4) * 60;
+  const durationPenalty =
+    course.duration > targetDurationMinute ? (course.duration - targetDurationMinute) / 8 : 0;
   const diversityBonus = Math.min(course.places.length, 4) * 3;
 
   return (
@@ -546,14 +552,34 @@ const variantRoleLabel = (role: CourseRole, fallback: string): string =>
     attraction: fallback
   })[role];
 
-const variantRoleDuration = (role: CourseRole): number =>
-  ({
+const resolvePlaceCountRange = (durationHours: number): { min: number; max: number } => {
+  if (durationHours <= 2) return { min: 1, max: 2 };
+  if (durationHours <= 4) return { min: 2, max: 3 };
+  if (durationHours <= 6) return { min: 3, max: 4 };
+  if (durationHours <= 8) return { min: 4, max: 5 };
+  if (durationHours <= 10) return { min: 5, max: 6 };
+  if (durationHours <= 12) return { min: 6, max: 7 };
+  return { min: 7, max: 8 };
+};
+
+const variantRoleDuration = (role: CourseRole, durationHours: number): number => {
+  const compactDurations: Record<CourseRole, number> = {
+    cafe: 45,
+    culture: 55,
+    walk: 40,
+    food: 55,
+    attraction: 45
+  };
+  const defaultDurations: Record<CourseRole, number> = {
     cafe: 60,
     culture: 80,
     walk: 50,
     food: 70,
     attraction: 60
-  })[role];
+  };
+
+  return (durationHours <= 2 ? compactDurations : defaultDurations)[role];
+};
 
 const estimateVariantCost = (place: CandidatePlace): number => {
   if (typeof place.estimatedCost === "number") {
@@ -570,6 +596,43 @@ const estimateVariantCost = (place: CandidatePlace): number => {
 
 const hasCoordinate = (place: CandidatePlace): boolean =>
   typeof place.latitude === "number" && typeof place.longitude === "number";
+
+const estimateVariantMoveTimeMinute = (
+  previousPlace: CandidatePlace | undefined,
+  nextPlace: CandidatePlace
+): number => {
+  if (!previousPlace || !hasCoordinate(previousPlace) || !hasCoordinate(nextPlace)) {
+    return 0;
+  }
+
+  const distanceMeter = mapClient.calculateDistanceMeter(
+    {
+      latitude: previousPlace.latitude as number,
+      longitude: previousPlace.longitude as number
+    },
+    {
+      latitude: nextPlace.latitude as number,
+      longitude: nextPlace.longitude as number
+    }
+  );
+
+  return mapClient.estimateWalkingDurationMinute(distanceMeter);
+};
+
+const estimateProjectedVariantDuration = (
+  selected: Array<{ role: CourseRole; place: CandidatePlace }>,
+  next: { role: CourseRole; place: CandidatePlace },
+  durationHours: number
+): number =>
+  selected.reduce(
+    (sum, item, index) =>
+      sum +
+      variantRoleDuration(item.role, durationHours) +
+      estimateVariantMoveTimeMinute(selected[index - 1]?.place, item.place),
+    0
+  ) +
+  variantRoleDuration(next.role, durationHours) +
+  estimateVariantMoveTimeMinute(selected[selected.length - 1]?.place, next.place);
 
 const sortCandidatesForVariant = (
   candidates: CandidatePlace[],
@@ -668,11 +731,11 @@ const routeCoursePlaces = async (
 };
 
 const variantRoles: Record<RecommendationType, CourseRole[]> = {
-  best: ["cafe", "culture", "walk", "food"],
-  balanced: ["cafe", "culture", "walk", "food"],
-  indoor: ["cafe", "culture", "food"],
-  "low-budget": ["walk", "cafe", "culture"],
-  "short-walk": ["cafe", "culture", "food"]
+  best: ["cafe", "culture", "walk", "food", "attraction", "cafe", "culture", "food"],
+  balanced: ["cafe", "culture", "walk", "food", "attraction", "cafe", "culture", "food"],
+  indoor: ["cafe", "culture", "food", "cafe", "culture", "food", "attraction", "cafe"],
+  "low-budget": ["walk", "cafe", "culture", "walk", "attraction", "cafe", "culture", "food"],
+  "short-walk": ["cafe", "culture", "food", "cafe", "culture", "attraction", "food", "cafe"]
 };
 
 const buildVariantTitle = (state: SeoulMateGraphState, type: RecommendationType): string => {
@@ -703,12 +766,13 @@ const buildCourseVariant = async (
   }
 
   const durationHours = state.parsedRequest?.durationHours ?? 3;
-  const targetCount = durationHours <= 2 ? 2 : durationHours >= 5 ? 4 : 3;
-  const roles = variantRoles[type].slice(0, targetCount);
+  const placeCountRange = resolvePlaceCountRange(durationHours);
+  const roles = variantRoles[type].slice(0, placeCountRange.max);
   const sortedCandidates = sortCandidatesForVariant(candidates, state.scoredPlaces, type);
   const usedIds = new Set<number>();
   const usedTitles = new Set<string>();
   const selected: Array<{ role: CourseRole; place: CandidatePlace }> = [];
+  const maxDurationMinute = durationHours > 12 ? Number.POSITIVE_INFINITY : durationHours * 60;
   let remainingBudget =
     type === "low-budget" && typeof state.parsedRequest?.budget === "number"
       ? Math.round(state.parsedRequest.budget * 0.85)
@@ -727,6 +791,15 @@ const buildCourseVariant = async (
 
     if (!place) {
       continue;
+    }
+
+    const projectedDuration = estimateProjectedVariantDuration(
+      selected,
+      { role, place },
+      durationHours
+    );
+    if (selected.length >= placeCountRange.min && projectedDuration > maxDurationMinute) {
+      break;
     }
 
     selected.push({ role, place });
@@ -751,7 +824,7 @@ const buildCourseVariant = async (
       category: roleMatchesVariant(role, place)
         ? variantRoleLabel(role, place.category)
         : place.category,
-      estimatedTimeMinute: variantRoleDuration(role),
+      estimatedTimeMinute: variantRoleDuration(role, durationHours),
       estimatedCost: estimateVariantCost(place),
       address: place.address,
       latitude: place.latitude,
@@ -1138,7 +1211,8 @@ export const recommendationService = {
       .map((variant) => toCourseResponseFromVariant(variant, state.contextData))
       .sort(
         (left, right) =>
-          scoreApiCourse(right, payload.budget) - scoreApiCourse(left, payload.budget)
+          scoreApiCourse(right, state.parsedRequest?.budget, state.parsedRequest?.durationHours) -
+          scoreApiCourse(left, state.parsedRequest?.budget, state.parsedRequest?.durationHours)
       )
       .map((course, index) => ({
         ...course,

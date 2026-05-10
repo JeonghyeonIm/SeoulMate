@@ -27,10 +27,10 @@ const hasOperatingHour = (place?: CandidatePlace): boolean => {
   const metadata = place?.metadata ?? {};
   return Boolean(
     metadata.openHour ??
-      metadata.operatingTime ??
-      metadata.useTime ??
-      metadata.businessDays ??
-      metadata.displayDate
+    metadata.operatingTime ??
+    metadata.useTime ??
+    metadata.businessDays ??
+    metadata.displayDate
   );
 };
 
@@ -45,7 +45,8 @@ export const validateRecommendationNode = async (
   const course = state.course;
   const candidateById = new Map((state.candidatePlaces ?? []).map((place) => [place.id, place]));
 
-  if (!course || course.places.length < 2) {
+  const minimumPlaceCount = (state.parsedRequest?.durationHours ?? 3) <= 2 ? 1 : 2;
+  if (!course || course.places.length < minimumPlaceCount) {
     errors.push("추천 장소 개수가 부족합니다.");
   }
 
@@ -69,8 +70,9 @@ export const validateRecommendationNode = async (
   }
 
   const missingOperatingHours =
-    course?.places.filter((coursePlace) => !hasOperatingHour(candidateById.get(coursePlace.placeId))) ??
-    [];
+    course?.places.filter(
+      (coursePlace) => !hasOperatingHour(candidateById.get(coursePlace.placeId))
+    ) ?? [];
 
   if (missingOperatingHours.length) {
     warnings.push("일부 장소의 운영시간 데이터가 없어 방문 전 확인이 필요합니다.");
@@ -85,12 +87,17 @@ export const validateRecommendationNode = async (
   const skyStatus = state.contextData?.weather?.skyStatus ?? "";
   const rainy = rainProbability >= 60 || includesAny(skyStatus, ["비", "눈", "rain"]);
 
-  if (rainy && course?.places.some((coursePlace) => isOutdoor(candidateById.get(coursePlace.placeId)))) {
+  if (
+    rainy &&
+    course?.places.some((coursePlace) => isOutdoor(candidateById.get(coursePlace.placeId)))
+  ) {
     warnings.push("비 또는 눈 가능성이 있어 야외 코스는 실내 대체 장소를 준비하는 것이 좋습니다.");
   }
 
   if (state.contextData?.weather?.source === "unavailable") {
-    warnings.push("요청 날짜가 기상청 예보 범위를 벗어나 날씨를 점수에 충분히 반영하지 못했습니다.");
+    warnings.push(
+      "요청 날짜가 기상청 예보 범위를 벗어나 날씨를 점수에 충분히 반영하지 못했습니다."
+    );
   }
 
   const validation: RecommendationValidation = {
