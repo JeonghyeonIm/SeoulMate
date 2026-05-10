@@ -1,14 +1,22 @@
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 
+import { env } from "./config/env";
 import { errorHandler } from "./middlewares/errorHandler";
 import routes from "./routes";
 import { httpLogger } from "./utils/logger";
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: env.FRONTEND_URL,
+    credentials: true
+  })
+);
 app.use(httpLogger);
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

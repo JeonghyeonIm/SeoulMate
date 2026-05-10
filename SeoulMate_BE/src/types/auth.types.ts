@@ -6,6 +6,7 @@ export type Vibe =
   | "낭만적인"
   | "로맨틱"
   | "활기찬"
+  | "로맨틱"
   | "고즈넉한"
   | "현대적인"
   | "감성적인"
@@ -40,7 +41,6 @@ export interface AuthUser {
 export interface AuthResponseBody {
   user: AuthUser;
   accessToken: string;
-  refreshToken: string;
   tokenType: string;
   expiresIn: number;
 }
@@ -61,7 +61,6 @@ export interface AuthResponseBody {
     nickname: string;
   };
   accessToken: string;
-  refreshToken: string;
   tokenType: string;
   expiresIn: number;
 }
