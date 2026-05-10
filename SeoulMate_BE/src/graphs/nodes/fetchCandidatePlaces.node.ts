@@ -20,6 +20,182 @@ const DEFAULT_SOURCE_DATASETS = [
   "viewNightSpot"
 ];
 
+const REQUESTED_SPECIAL_CATEGORY_KEYWORDS = [
+  "\ucea0\ud551",
+  "\ucea0\ud551\uc7a5",
+  "\uc57c\uc601",
+  "\uae00\ub7a8\ud551",
+  "\ub180\uc774\uc2dc\uc124",
+  "\ub180\uc774\uacf5\uc6d0",
+  "\ud14c\ub9c8\ud30c\ud06c",
+  "\uc5b4\ud2b8\ub799\uc158",
+  "\uc6cc\ud130\ud30c\ud06c"
+];
+
+const CATEGORY_KEYWORD_ALIASES: Array<{
+  triggers: string[];
+  aliases: string[];
+}> = [
+  {
+    triggers: [
+      "\uc220\uc9d1",
+      "2\ucc28",
+      "\ud638\ud504\uc9d1",
+      "\uc8fc\uc810",
+      "\ud074\ub7fd",
+      "\ub098\uc774\ud2b8",
+      "\uac10\uc131\uc8fc\uc810",
+      "\ud38d",
+      "\ud558\uc774\ubcfc",
+      "\ub9c9\uac78\ub9ac",
+      "\ub9c9\uac78\ub9ac\uc9d1",
+      "\uc804\ud1b5\uc8fc\uc810",
+      "\ub8e8\ud504\ud0d1\ubc14"
+    ],
+    aliases: [
+      "\uc220\uc9d1",
+      "2\ucc28",
+      "\ud638\ud504\uc9d1",
+      "\uc8fc\uc810",
+      "\ud638\ud504",
+      "\ud3ec\ucc28",
+      "\ub9e5\uc8fc",
+      "\uc640\uc778",
+      "\uce75\ud14c\uc77c",
+      "\uc774\uc790\uce74\uc57c",
+      "\ud38d",
+      "\ud558\uc774\ubcfc",
+      "\ub9c9\uac78\ub9ac",
+      "\ub9c9\uac78\ub9ac\uc9d1",
+      "\uc804\ud1b5\uc8fc\uc810",
+      "\ub8e8\ud504\ud0d1\ubc14",
+      "\ud63c\uc220",
+      "\uac10\uc131\uc8fc\uc810",
+      "\uc815\uc885/\ub300\ud3ec\uc9d1/\uc18c\uc8fc\ubc29",
+      "\ud638\ud504/\ud1b5\ub2ed",
+      "club",
+      "bar",
+      "pub"
+    ]
+  },
+  {
+    triggers: ["\uce58\ud0a8", "\ud1b5\ub2ed", "\ud53c\uc790", "\ud53c\uc790\uc9d1"],
+    aliases: [
+      "\uce58\ud0a8",
+      "\ud1b5\ub2ed",
+      "\ud638\ud504/\ud1b5\ub2ed",
+      "\ud53c\uc790",
+      "\ud53c\uc790\uc9d1",
+      "chicken",
+      "pizza"
+    ]
+  },
+  {
+    triggers: [
+      "\ub178\ub798\ubc29",
+      "\ub178\ub798\uc5f0\uc2b5\uc7a5",
+      "\ucf54\uc778\ub178\ub798\ubc29"
+    ],
+    aliases: [
+      "\ub178\ub798\ubc29",
+      "\ub178\ub798\uc5f0\uc2b5\uc7a5",
+      "\ucf54\uc778\ub178\ub798\ubc29",
+      "\ub3d9\uc804\ub178\ub798\uc5f0\uc2b5\uc7a5",
+      "karaoke"
+    ]
+  },
+  {
+    triggers: [
+      "\uc2e4\ub0b4\ub180\uac70\ub9ac",
+      "\ubc29\ud0c8\ucd9c",
+      "\ubcf4\ub4dc\uac8c\uc784",
+      "\ucc1c\uc9c8\ubc29",
+      "\ubcfc\ub9c1",
+      "\ub2f9\uad6c",
+      "\ub9cc\ud654\uce74\ud398",
+      "\uacf5\ubc29",
+      "\uc6d0\ub370\uc774\ud074\ub798\uc2a4",
+      "\ud5a5\uc218",
+      "\ub3c4\uc790\uae30",
+      "\ud074\ub77c\uc774\ubc0d",
+      "\uc544\ucf00\uc774\ub4dc",
+      "\uc561\ud2f0\ube44\ud2f0",
+      "\uccb4\ud5d8"
+    ],
+    aliases: [
+      "\ubc29\ud0c8\ucd9c",
+      "\ubcf4\ub4dc\uac8c\uc784",
+      "\ubcf4\ub4dc\uac8c\uc784\uce74\ud398",
+      "\ucc1c\uc9c8\ubc29",
+      "\ubcfc\ub9c1",
+      "\ub2f9\uad6c",
+      "\ub2f9\uad6c\uc7a5",
+      "\ub9cc\ud654\uce74\ud398",
+      "\uacf5\ubc29",
+      "\uc6d0\ub370\uc774\ud074\ub798\uc2a4",
+      "\ud5a5\uc218",
+      "\ub3c4\uc790\uae30",
+      "\ud074\ub77c\uc774\ubc0d",
+      "VR",
+      "vr",
+      "\uc544\ucf00\uc774\ub4dc",
+      "\ubcf5\ud569\uc720\ud1b5\uac8c\uc784\uc81c\uacf5\uc5c5",
+      "\uccb4\ub825\ub2e8\ub828\uc7a5\uc5c5"
+    ]
+  },
+  {
+    triggers: [
+      "\ucea0\ud551",
+      "\ucea0\ud551\uc7a5",
+      "\uc57c\uc601",
+      "\uae00\ub7a8\ud551",
+      "\ubc14\ubca0\ud050",
+      "\ud53c\ud06c\ub2c9\uc7a5"
+    ],
+    aliases: [
+      "\ucea0\ud551",
+      "\ucea0\ud551\uc7a5",
+      "\uc57c\uc601",
+      "\uae00\ub7a8\ud551",
+      "\ubc14\ubca0\ud050",
+      "\ud53c\ud06c\ub2c9\uc7a5",
+      "\ud53c\ud06c\ub2c9"
+    ]
+  },
+  {
+    triggers: [
+      "\ub180\uc774\uc2dc\uc124",
+      "\ub180\uc774\uacf5\uc6d0",
+      "\ud14c\ub9c8\ud30c\ud06c",
+      "\uc5b4\ud2b8\ub799\uc158",
+      "\uc6cc\ud130\ud30c\ud06c"
+    ],
+    aliases: [
+      "\ub180\uc774\uc2dc\uc124",
+      "\ub180\uc774\uacf5\uc6d0",
+      "\ud14c\ub9c8\ud30c\ud06c",
+      "\uc5b4\ud2b8\ub799\uc158",
+      "\uc6cc\ud130\ud30c\ud06c",
+      "\uc5b4\ub4dc\ubca4\ucc98",
+      "\ub86f\ub370\uc6d4\ub4dc",
+      "\uc5b4\ub9b0\uc774\ub300\uacf5\uc6d0",
+      "\ud5c8\uac00\ud14c\ub9c8\ud30c\ud06c\uc5c5"
+    ]
+  }
+];
+
+const AMUSEMENT_REGION_HINTS = [
+  "\uc7a0\uc2e4",
+  "\uc1a1\ud30c",
+  "\ub86f\ub370\uc6d4\ub4dc",
+  "\uc5b4\ub9b0\uc774\ub300\uacf5\uc6d0",
+  "\ub2a5\ub3d9",
+  "\uad11\uc9c4",
+  "\ubb38\uc815",
+  "\ud30c\ud06c\ud558\ube44\uc624",
+  "\uc6cc\ud130\ud0b9\ub364"
+];
+
 const CATEGORY_SOURCE_DATASETS: Array<{
   keywords: string[];
   sourceDatasets: string[];
@@ -384,7 +560,19 @@ const isExpiredEvent = (place: CandidatePlace, targetDateTime?: string): boolean
 
 const resolveSourceDatasets = (request?: ParsedRecommendationRequest): string[] => {
   const categories = request?.preferredCategories ?? [];
+  const hasLivelyAmusementHint = shouldPreferAmusementCandidates(request);
   const selected = new Set<string>();
+  const shouldSearchAllDatasets =
+    categories.some((category) => {
+      const normalized = category.toLowerCase();
+      return REQUESTED_SPECIAL_CATEGORY_KEYWORDS.some((keyword) =>
+        normalized.includes(keyword.toLowerCase())
+      );
+    }) || hasLivelyAmusementHint;
+
+  if (shouldSearchAllDatasets) {
+    return [];
+  }
 
   for (const category of categories) {
     const normalized = category.toLowerCase();
@@ -398,9 +586,45 @@ const resolveSourceDatasets = (request?: ParsedRecommendationRequest): string[] 
   return selected.size ? [...selected] : DEFAULT_SOURCE_DATASETS;
 };
 
-const buildKeywords = (request?: ParsedRecommendationRequest): string[] => [
-  ...(request?.preferredCategories ?? [])
-];
+const shouldPreferAmusementCandidates = (request?: ParsedRecommendationRequest): boolean => {
+  const mood = request?.mood ?? [];
+  const region = request?.region ?? "";
+  const durationHours = request?.durationHours ?? 0;
+  const budget = request?.budget;
+  const hasLivelyMood = mood.some((item) => item.includes("\ud65c\uae30"));
+  const isAmusementArea = AMUSEMENT_REGION_HINTS.some((hint) => region.includes(hint));
+  const hasEnoughDuration = durationHours >= 4;
+  const hasEnoughBudget = budget === undefined || budget === 200001 || budget >= 30000;
+
+  return hasLivelyMood && isAmusementArea && hasEnoughDuration && hasEnoughBudget;
+};
+
+const buildKeywords = (request?: ParsedRecommendationRequest): string[] => {
+  const categories = request?.preferredCategories ?? [];
+  const keywords = [...categories];
+
+  for (const category of categories) {
+    const normalized = category.toLowerCase();
+    for (const group of CATEGORY_KEYWORD_ALIASES) {
+      if (group.triggers.some((trigger) => normalized.includes(trigger.toLowerCase()))) {
+        keywords.push(...group.aliases);
+      }
+    }
+  }
+
+  if (shouldPreferAmusementCandidates(request)) {
+    keywords.push(
+      "\ub180\uc774\uc2dc\uc124",
+      "\ub180\uc774\uacf5\uc6d0",
+      "\ud14c\ub9c8\ud30c\ud06c",
+      "\uc5b4\ub4dc\ubca4\ucc98",
+      "\ub86f\ub370\uc6d4\ub4dc",
+      "\ud5c8\uac00\ud14c\ub9c8\ud30c\ud06c\uc5c5"
+    );
+  }
+
+  return uniqueStrings(keywords);
+};
 
 const normalizeRegionText = (region: string): string => region.toLowerCase().replace(/\s+/g, "");
 

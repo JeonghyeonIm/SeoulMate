@@ -8,6 +8,7 @@ import type {
 const MAX_VERIFICATION_REQUESTS = 4;
 const MIN_VERIFIED_CANDIDATES = 8;
 const CONCURRENCY = 4;
+const ENABLE_KAKAO_PLACE_VERIFICATION = process.env.SEOULMATE_ENABLE_KAKAO_VERIFY === "true";
 
 const TRUSTED_SOURCE_DATASETS = new Set([
   "culturalSpaceInfo",
@@ -204,6 +205,12 @@ export const verifyCandidatePlacesNode = async (
   const candidatePlaces = state.candidatePlaces ?? [];
   if (!candidatePlaces.length) {
     return {};
+  }
+
+  if (!ENABLE_KAKAO_PLACE_VERIFICATION) {
+    return {
+      candidatePlaces
+    };
   }
 
   const verificationTargets = candidatePlaces

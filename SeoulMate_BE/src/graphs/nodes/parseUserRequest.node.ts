@@ -302,6 +302,115 @@ const parsePreferredCategories = (input: string): string[] => {
     parsed.push("카페", "문화공간");
   }
 
+  const hasAny = (keywords: string[]): boolean =>
+    keywords.some((keyword) => input.includes(keyword));
+
+  const hasStandaloneDrinkWord = /(^|[^\uac00-\ud7a3])\uc220([^\uac00-\ud7a3]|$)/.test(input);
+  const hasNoAlcoholIntent =
+    input.includes("\uc220 \ubabb") ||
+    input.includes("\uc220\ubabb") ||
+    input.includes("\uc220 \uc548") ||
+    input.includes("\uc220\uc548") ||
+    input.includes("\uc220 \uc548 \ub9c8") ||
+    input.includes("\uc220\uc548\ub9c8");
+
+  if (
+    (!hasNoAlcoholIntent && hasStandaloneDrinkWord) ||
+    hasAny([
+      "\uc220\uc9d1",
+      "2\ucc28",
+      "\ud638\ud504\uc9d1",
+      "\uc8fc\uc810",
+      "\ud638\ud504",
+      "\ud3ec\ucc28",
+      "\ub9e5\uc8fc",
+      "\uc640\uc778",
+      "\uce75\ud14c\uc77c",
+      "\uc774\uc790\uce74\uc57c",
+      "\ud38d",
+      "\ud558\uc774\ubcfc",
+      "\ud558\uc774\ubcfc \ub9db\uc9d1",
+      "\ub9c9\uac78\ub9ac",
+      "\ub9c9\uac78\ub9ac\uc9d1",
+      "\uc804\ud1b5\uc8fc\uc810",
+      "\ub8e8\ud504\ud0d1\ubc14",
+      "\ud63c\uc220"
+    ])
+  ) {
+    parsed.push("\uc220\uc9d1");
+  }
+
+  if (hasAny(["\uce58\ud0a8", "\ud1b5\ub2ed", "\ud53c\uc790", "\ud53c\uc790\uc9d1"])) {
+    parsed.push("\uc74c\uc2dd\uc810", "\uce58\ud0a8", "\ud53c\uc790");
+  }
+
+  if (
+    hasAny([
+      "\ub178\ub798\ubc29",
+      "\ub178\ub798\uc5f0\uc2b5\uc7a5",
+      "\ucf54\uc778\ub178\ub798\ubc29"
+    ])
+  ) {
+    parsed.push("\ub178\ub798\ubc29");
+  }
+
+  if (
+    hasAny([
+      "\ubc29\ud0c8\ucd9c",
+      "\ubcf4\ub4dc\uac8c\uc784",
+      "\ubcf4\ub4dc\uac8c\uc784\uce74\ud398",
+      "\ucc1c\uc9c8\ubc29",
+      "\ubcfc\ub9c1",
+      "\ub2f9\uad6c",
+      "\ub9cc\ud654\uce74\ud398",
+      "\uacf5\ubc29",
+      "\uc6d0\ub370\uc774\ud074\ub798\uc2a4",
+      "\ud5a5\uc218",
+      "\ub3c4\uc790\uae30",
+      "\ud074\ub77c\uc774\ubc0d",
+      "VR",
+      "vr",
+      "\uc544\ucf00\uc774\ub4dc",
+      "\uc2e4\ub0b4 \ub180\uac70\ub9ac",
+      "\uc2e4\ub0b4\ub180\uac70\ub9ac",
+      "\uc561\ud2f0\ube44\ud2f0",
+      "\uccb4\ud5d8"
+    ])
+  ) {
+    parsed.push("\uc2e4\ub0b4\ub180\uac70\ub9ac");
+  }
+
+  if (hasAny(["\ud074\ub7fd", "\ub098\uc774\ud2b8", "\uac10\uc131\uc8fc\uc810"])) {
+    parsed.push("\ud074\ub7fd");
+  }
+
+  if (
+    hasAny([
+      "\ucea0\ud551",
+      "\ucea0\ud551\uc7a5",
+      "\uc57c\uc601",
+      "\uae00\ub7a8\ud551",
+      "\ubc14\ubca0\ud050",
+      "\ud53c\ud06c\ub2c9\uc7a5"
+    ])
+  ) {
+    parsed.push("\ucea0\ud551\uc7a5");
+  }
+
+  if (
+    hasAny([
+      "\ub180\uc774\uc2dc\uc124",
+      "\ub180\uc774\uacf5\uc6d0",
+      "\ud14c\ub9c8\ud30c\ud06c",
+      "\uc5b4\ud2b8\ub799\uc158",
+      "\uc6cc\ud130\ud30c\ud06c",
+      "\ub86f\ub370\uc6d4\ub4dc",
+      "\uc5b4\ub9b0\uc774\ub300\uacf5\uc6d0\ub180\uc774\ub3d9\uc0b0"
+    ])
+  ) {
+    parsed.push("\ub180\uc774\uc2dc\uc124");
+  }
+
   return [...new Set(parsed)];
 };
 
