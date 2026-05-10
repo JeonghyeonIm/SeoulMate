@@ -205,13 +205,13 @@ const parseDuration = (input: string): number | undefined => {
 
 const parseRegion = (input: string): string | undefined => {
   const matched = input.match(
-    /(성수|서울숲|홍대|연남|합정|망원|강남|신사|압구정|잠실|여의도|익선|이태원|한남|을지로|명동|종로|혜화|신촌|건대|서촌|북촌|성북|용산|마포|성동|송파|서초|중구|종로구|강남구|성동구|마포구|용산구)/
+    /(성수|서울숲|왕십리|한양대|행당|홍대|연남|합정|망원|강남|신사|압구정|잠실|여의도|익선|이태원|한남|을지로|명동|종로|혜화|신촌|건대|서촌|북촌|성북|용산|마포|성동|송파|서초|중구|종로구|강남구|성동구|마포구|용산구)/
   );
   if (matched?.[1]) {
     return matched[1];
   }
 
-  const genericRegion = input.match(/([가-힣A-Za-z0-9]+)\s*에서/);
+  const genericRegion = input.match(/([가-힣A-Za-z0-9]+)\s*(?:에서|주변|근처|일대|쪽)/);
   return genericRegion?.[1];
 };
 
