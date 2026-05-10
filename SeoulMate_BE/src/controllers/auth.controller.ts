@@ -1,4 +1,4 @@
-import { type NextFunction, type Request, type Response } from "express";
+import { type CookieOptions, type NextFunction, type Request, type Response } from "express";
 
 import { env } from "../config/env";
 import {
@@ -15,6 +15,31 @@ import type { AuthResponseBody, LoginRequestBody, RefreshRequestBody } from "../
 import { ApiError } from "../utils/ApiError";
 import { validateSignupRequest } from "../validators/user.validator";
 
+const REFRESH_TOKEN_COOKIE_NAME = "seoulmate-refresh-token";
+
+const getRefreshTokenCookieOptions = (maxAge: number): CookieOptions => ({
+  httpOnly: true,
+  secure: process.env.COOKIE_SECURE === "true",
+  sameSite: "strict",
+  domain: ".seoulmate.my",
+  path: "/api/auth",
+  maxAge
+});
+
+const setRefreshTokenCookie = (res: Response, refreshToken: string, maxAge = 604800000): void => {
+  res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, getRefreshTokenCookieOptions(maxAge));
+};
+
+const getRefreshTokenFromCookie = (req: Request): string => {
+  const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
+
+  if (typeof refreshToken !== "string" || refreshToken.length === 0) {
+    throw new ApiError(401, "refresh token 쿠키가 필요합니다.");
+  }
+
+  return refreshToken;
+};
+
 // ── 이메일 회원가입 ────────────────────────────────────────────────────────────
 
 export async function signupController(
@@ -25,7 +50,8 @@ export async function signupController(
   try {
     const payload = validateSignupRequest(req.body);
     const result = await signup(payload);
-    res.status(201).json(result);
+    setRefreshTokenCookie(res, result.refreshToken);
+    res.status(201).json(result.body);
   } catch (error) {
     next(error);
   }
@@ -43,7 +69,9 @@ export async function loginController(
     if (typeof email !== "string" || typeof password !== "string") {
       throw new ApiError(400, "email과 password가 필요합니다.");
     }
-    res.status(200).json(await login(email, password));
+    const result = await login(email, password);
+    setRefreshTokenCookie(res, result.refreshToken);
+    res.status(200).json(result.body);
   } catch (error) {
     next(error);
   }
@@ -57,10 +85,9 @@ export async function refreshController(
   next: NextFunction
 ): Promise<void> {
   try {
-    if (typeof req.body.refreshToken !== "string") {
-      throw new ApiError(400, "refreshToken이 필요합니다.");
-    }
-    res.status(200).json(await refreshAuth(req.body.refreshToken));
+    const result = await refreshAuth(getRefreshTokenFromCookie(req));
+    setRefreshTokenCookie(res, result.refreshToken);
+    res.status(200).json(result.body);
   } catch (error) {
     next(error);
   }
@@ -74,10 +101,8 @@ export async function logoutController(
   next: NextFunction
 ): Promise<void> {
   try {
-    if (typeof req.body.refreshToken !== "string") {
-      throw new ApiError(400, "refreshToken이 필요합니다.");
-    }
-    await logout(req.body.refreshToken);
+    await logout(getRefreshTokenFromCookie(req));
+    setRefreshTokenCookie(res, "", 0);
     res.status(204).send();
   } catch (error) {
     next(
@@ -105,9 +130,9 @@ export async function kakaoCallbackController(
 
     const result = await handleKakaoCallback(code);
     const params = new URLSearchParams({
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken
+      accessToken: result.body.accessToken
     });
+    setRefreshTokenCookie(res, result.refreshToken);
     res.redirect(`${env.FRONTEND_URL}/auth/callback?${params}`);
   } catch (error) {
     next(error);
@@ -133,9 +158,9 @@ export async function googleCallbackController(
 
     const result = await handleGoogleCallback(code);
     const params = new URLSearchParams({
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken
+      accessToken: result.body.accessToken
     });
+    setRefreshTokenCookie(res, result.refreshToken);
     res.redirect(`${env.FRONTEND_URL}/auth/callback?${params}`);
   } catch (error) {
     next(error);
