@@ -105,7 +105,7 @@ const normalizeMoods = (values: string[]): string[] => [
 const cleanParsedRequest = (value: ParsedRequestFromAi): ParsedRecommendationRequest => ({
   region: compactString(value.region),
   budget:
-    typeof value.budget === "number" && value.budget > 0 ? Math.round(value.budget) : undefined,
+    typeof value.budget === "number" && value.budget >= 0 ? Math.round(value.budget) : undefined,
   dateTime: compactString(value.dateTime),
   durationHours:
     typeof value.durationHours === "number" && value.durationHours > 0

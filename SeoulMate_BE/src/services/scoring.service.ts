@@ -99,7 +99,7 @@ const scoreRegion = (place: CandidatePlace, request?: ParsedRecommendationReques
 };
 
 const scoreBudget = (place: CandidatePlace, request?: ParsedRecommendationRequest): number => {
-  if (!request?.budget) {
+  if (request?.budget === undefined) {
     return SCORE_WEIGHT.budget * 0.75;
   }
 

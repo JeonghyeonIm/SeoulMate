@@ -177,12 +177,50 @@ const normalizeMoods = (values: string[]): string[] => [
   ...new Set(values.map(normalizeMood).filter((mood): mood is string => Boolean(mood)))
 ];
 
+const MAX_BUDGET = 200000;
+const OPEN_ENDED_BUDGET = 200001;
+const BUDGET_STEP = 5000;
+
+const readRecommendationBudget = (value: unknown): number => {
+  const budget = Number(value);
+  if (!Number.isInteger(budget)) {
+    throw new ApiError(400, "budget 값은 정수여야 합니다.");
+  }
+
+  if (budget === OPEN_ENDED_BUDGET) {
+    return budget;
+  }
+
+  if (budget < 0 || budget > MAX_BUDGET || budget % BUDGET_STEP !== 0) {
+    throw new ApiError(400, "budget 값은 0부터 200000까지 5000원 단위이거나 200001이어야 합니다.");
+  }
+
+  return budget;
+};
+
+const budgetToText = (budget: number): string =>
+  budget === OPEN_ENDED_BUDGET ? `${MAX_BUDGET}원 초과` : `${budget}원 이하`;
+
 const durationToHours = (duration?: string): number | undefined => {
   if (!duration) {
     return undefined;
   }
 
   const normalized = duration.trim().toLowerCase();
+  const durationBuckets: Record<string, number> = {
+    "lte-2h": 2,
+    "gt-2h-lte-4h": 4,
+    "gt-4h-lte-6h": 6,
+    "gt-6h-lte-8h": 8,
+    "gt-8h-lte-10h": 10,
+    "gt-10h-lte-12h": 12,
+    "gt-12h": 13
+  };
+
+  if (durationBuckets[normalized]) {
+    return durationBuckets[normalized];
+  }
+
   const hourMatch = normalized.match(/^(\d+(?:\.\d+)?)h$/);
   if (hourMatch) {
     return Number(hourMatch[1]);
@@ -200,7 +238,7 @@ const durationToHours = (duration?: string): number | undefined => {
 };
 
 const durationHoursToText = (hours?: number): string | undefined =>
-  hours ? `${hours}시간` : undefined;
+  hours ? (hours > 12 ? "12시간 초과" : `${hours}시간`) : undefined;
 
 const hasDateTimeHint = (value: string): boolean =>
   /(오늘|지금|내일|모레|이번\s*주|다음\s*주|\d+\s*(시간|일)\s*(뒤|후)|일요일|월요일|화요일|수요일|목요일|금요일|토요일|\d{1,2}\s*시|오전|오후|저녁|밤|점심)/.test(
@@ -267,7 +305,7 @@ const buildStructuredRecommendationInput = (
   }
 
   const region = typeof payload.region === "string" ? payload.region.trim() : "";
-  const budget = Number(payload.budget);
+  const budget = readRecommendationBudget(payload.budget);
   const durationHours = durationToHours(payload.duration);
   const vibes = normalizeMoods(normalizeStringArray(payload.vibes, "vibes", true));
   const dateTime = readRequestDateTime(payload.dateTime);
@@ -278,18 +316,17 @@ const buildStructuredRecommendationInput = (
     throw new ApiError(400, "region 값은 필수입니다.");
   }
 
-  if (!Number.isFinite(budget) || budget <= 0) {
-    throw new ApiError(400, "budget 값은 양수여야 합니다.");
-  }
-
   if (!durationHours) {
-    throw new ApiError(400, "duration 값은 2h, half-day, full-day 중 하나여야 합니다.");
+    throw new ApiError(
+      400,
+      "duration 값은 lte-2h, gt-2h-lte-4h, gt-4h-lte-6h, gt-6h-lte-8h, gt-8h-lte-10h, gt-10h-lte-12h, gt-12h 중 하나여야 합니다."
+    );
   }
 
   const structuredText = [
     query,
     `${region}에서`,
-    `${budget}원 이하`,
+    budgetToText(budget),
     durationHoursToText(durationHours),
     vibes.length ? `${vibes.join(", ")} 분위기` : undefined,
     purpose
@@ -299,7 +336,7 @@ const buildStructuredRecommendationInput = (
 
   const parsedRequest: ParsedRecommendationRequest = {
     region,
-    budget: Math.round(budget),
+    budget,
     durationHours,
     mood: vibes
   };
@@ -440,7 +477,7 @@ const congestionPenalty: Record<CongestionLevel, number> = {
 
 const scoreApiCourse = (course: CourseResponse, budget?: number): number => {
   const budgetPenalty =
-    typeof budget === "number" && budget > 0 ? Math.max(0, course.totalCost - budget) / 1000 : 0;
+    typeof budget === "number" ? Math.max(0, course.totalCost - budget) / 1000 : 0;
   const durationPenalty = course.duration > 240 ? (course.duration - 240) / 8 : 0;
   const diversityBonus = Math.min(course.places.length, 4) * 3;
 
@@ -738,9 +775,10 @@ const fallbackVariantExplanation = (
 ): AiExplanation => {
   const placeNames = variant.course.places.map((place) => place.title).join(" -> ");
   const budget = state.parsedRequest?.budget;
-  const costText = budget
-    ? `예상 비용은 ${variant.course.estimatedBudget.toLocaleString("ko-KR")}원으로 요청 예산 ${budget.toLocaleString("ko-KR")}원 기준에서 확인했습니다.`
-    : `예상 비용은 ${variant.course.estimatedBudget.toLocaleString("ko-KR")}원입니다.`;
+  const costText =
+    budget !== undefined
+      ? `예상 비용은 ${variant.course.estimatedBudget.toLocaleString("ko-KR")}원으로 요청 예산 ${budgetToText(budget)} 기준에서 확인했습니다.`
+      : `예상 비용은 ${variant.course.estimatedBudget.toLocaleString("ko-KR")}원입니다.`;
 
   return {
     summary: `${buildVariantTitle(state, variant.type)}: ${placeNames} 순서로 이동 부담을 고려해 구성했습니다.`,

@@ -348,7 +348,7 @@ Authorization: Bearer <access_token>
   "region": "성수",
   "vibes": ["조용한", "낭만적인"],
   "budget": 40000,
-  "duration": "half-day",
+  "duration": "gt-2h-lte-4h",
   "dateTime": "2026-05-08T18:00:00+09:00",
   "purpose": "데이트"
 }
@@ -357,7 +357,16 @@ Authorization: Bearer <access_token>
 - 참고:
   - 레거시 입력 형식으로 `{ "input": "free text request" }` 도 지원합니다
   - 구조화 요청 방식에서는 `region`, `vibes`, `budget`, `duration`이 필요합니다
-  - `duration`은 `2h`, `half-day`, `full-day` 중 하나여야 합니다
+  - `budget`은 `0`부터 `200000`까지 `5000`원 단위로 전달합니다
+  - `budget`이 `200000+`인 경우에는 `200001`을 전달합니다
+  - `duration`은 아래 enum 중 하나여야 합니다
+    - `lte-2h`: 2시간 이하
+    - `gt-2h-lte-4h`: 2시간 초과~4시간 이하
+    - `gt-4h-lte-6h`: 4시간 초과~6시간 이하
+    - `gt-6h-lte-8h`: 6시간 초과~8시간 이하
+    - `gt-8h-lte-10h`: 8시간 초과~10시간 이하
+    - `gt-10h-lte-12h`: 10시간 초과~12시간 이하
+    - `gt-12h`: 12시간 초과
   - `dateTime`은 요청 본문에 명시된 값을 query 안의 시간 표현보다 우선 사용합니다
   - `dateTime`은 현재 시각 이후 10일 이내만 허용합니다
 - 성공 응답: `200 OK`
