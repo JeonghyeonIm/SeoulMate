@@ -14,10 +14,20 @@ const SALT_ROUNDS = 10;
 
 // ── 공통 헬퍼 ─────────────────────────────────────────────────────────────────
 
-function buildAuthResponse(user: UserProfile): AuthResponseBody {
+export interface AuthServiceResult {
+  body: AuthResponseBody;
+  refreshToken: string;
+}
+
+function buildAuthResponse(user: UserProfile): AuthServiceResult {
+  const { refreshToken, ...body } = issueAuthTokens(user.id);
+
   return {
-    user: { id: user.id, email: user.email, nickname: user.nickname },
-    ...issueAuthTokens(user.id)
+    body: {
+      user: { id: user.id, email: user.email, nickname: user.nickname },
+      ...body
+    },
+    refreshToken
   };
 }
 
@@ -40,7 +50,7 @@ async function loginWithOAuth(
   oauthId: string,
   email: string,
   displayName: string
-): Promise<AuthResponseBody> {
+): Promise<AuthServiceResult> {
   // 1. (provider, oauth_id)로 기존 유저 조회
   const existing = await userRepository.findByOAuth(provider, oauthId);
   if (existing) return buildAuthResponse(existing);
@@ -74,7 +84,7 @@ async function loginWithOAuth(
 
 // ── 이메일(local) 회원가입 ─────────────────────────────────────────────────────
 
-export async function signup(payload: ValidatedSignupPayload): Promise<AuthResponseBody> {
+export async function signup(payload: ValidatedSignupPayload): Promise<AuthServiceResult> {
   await ensureEmailAvailable(payload.email);
   await ensureNicknameAvailable(payload.nickname);
 
@@ -92,7 +102,7 @@ export async function signup(payload: ValidatedSignupPayload): Promise<AuthRespo
 
 // ── 이메일(local) 로그인 ───────────────────────────────────────────────────────
 
-export async function login(email: string, password: string): Promise<AuthResponseBody> {
+export async function login(email: string, password: string): Promise<AuthServiceResult> {
   const user = await userRepository.getAuthByEmail(email.trim().toLowerCase());
 
   if (!user || user.provider !== "local" || !user.passwordHash) {
@@ -113,7 +123,7 @@ export function getKakaoAuthUrl(): string {
   return kakaoOAuthClient.getAuthorizationUrl();
 }
 
-export async function handleKakaoCallback(code: string): Promise<AuthResponseBody> {
+export async function handleKakaoCallback(code: string): Promise<AuthServiceResult> {
   try {
     const accessToken = await kakaoOAuthClient.getAccessToken(code);
     const userInfo = await kakaoOAuthClient.getUserInfo(accessToken);
@@ -140,7 +150,7 @@ export function getGoogleAuthUrl(): string {
   return googleOAuthClient.getAuthorizationUrl();
 }
 
-export async function handleGoogleCallback(code: string): Promise<AuthResponseBody> {
+export async function handleGoogleCallback(code: string): Promise<AuthServiceResult> {
   try {
     const accessToken = await googleOAuthClient.getAccessToken(code);
     const userInfo = await googleOAuthClient.getUserInfo(accessToken);
@@ -164,7 +174,7 @@ export async function logout(refreshToken: string): Promise<void> {
 
 // ── 토큰 갱신 ─────────────────────────────────────────────────────────────────
 
-export async function refreshAuth(refreshToken: string): Promise<AuthResponseBody> {
+export async function refreshAuth(refreshToken: string): Promise<AuthServiceResult> {
   try {
     const payload = verifyToken(refreshToken, "refresh");
 
