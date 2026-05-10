@@ -62,8 +62,10 @@ const fallbackExplanation = (state: SeoulMateGraphState): AiExplanation => {
   return {
     summary: `${region} 조건에 맞춰 ${courseNames} 순서의 코스를 구성했습니다.`,
     reason: `공공데이터 후보 중 지역, 예산, 분위기, 이동 부담을 함께 반영해 점수가 높은 장소를 조합했습니다.${
-      budget
-        ? ` 예상 비용은 약 ${estimatedBudget.toLocaleString("ko-KR")}원으로 요청 예산 ${budget.toLocaleString("ko-KR")}원을 기준으로 확인했습니다.`
+      budget !== undefined
+        ? ` 예상 비용은 약 ${estimatedBudget.toLocaleString("ko-KR")}원으로 요청 예산 ${
+            budget === 200001 ? "200,000원 초과" : `${budget.toLocaleString("ko-KR")}원 이하`
+          }를 기준으로 확인했습니다.`
         : ""
     }`,
     riskNotice: [
