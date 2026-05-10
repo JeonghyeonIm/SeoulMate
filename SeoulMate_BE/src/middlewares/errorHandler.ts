@@ -2,6 +2,7 @@
 import { type NextFunction, type Request, type Response } from "express";
 
 import { ApiError } from "../utils/ApiError";
+import logger from "../utils/logger";
 
 interface ErrorResponseBody {
   status: number;
@@ -48,6 +49,15 @@ export function errorHandler(
 
     return;
   }
+
+  logger.error(
+    {
+      err,
+      message: err instanceof Error ? err.message : undefined,
+      stack: err instanceof Error ? err.stack : undefined
+    },
+    "Unhandled server error"
+  );
 
   res.status(500).json({
     status: 500,
