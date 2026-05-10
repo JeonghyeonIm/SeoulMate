@@ -1,5 +1,4 @@
 import { mapClient } from "../clients/map.client";
-import { openaiClient } from "../clients/openai.client";
 import {
   runRecommendationGraph,
   runRecommendationGraphWithoutAiExplanation
@@ -75,7 +74,21 @@ export interface WeatherResponse {
   weatherAlert: string | null;
 }
 
-export type RecommendationType = "best" | "balanced" | "indoor" | "low-budget" | "short-walk";
+export type RecommendationType =
+  | "best"
+  | "balanced"
+  | "indoor"
+  | "low-budget"
+  | "short-walk"
+  | "mood-quiet"
+  | "mood-hip"
+  | "mood-poetic"
+  | "mood-romantic"
+  | "mood-lively"
+  | "mood-calm"
+  | "mood-modern"
+  | "mood-emotional"
+  | "mood-nature";
 
 export interface CourseResponse {
   id: string;
@@ -108,6 +121,7 @@ type InternalWeather = NonNullable<RecommendationContextData["weather"]>;
 
 type RecommendationVariant = {
   type: RecommendationType;
+  mood?: string;
 };
 
 type CourseRole = "cafe" | "culture" | "walk" | "food" | "attraction";
@@ -117,16 +131,6 @@ type BuiltCourseVariant = {
   course: RecommendationCourse;
   explanation?: AiExplanation;
   requestId?: number;
-};
-
-type BatchAiExplanationResponse = {
-  courses: Array<{
-    type: RecommendationType;
-    summary: string;
-    reason: string;
-    riskNotice: string;
-    alternativeSuggestion: string;
-  }>;
 };
 
 export interface CourseDetail {
@@ -458,39 +462,38 @@ const toWeatherResponse = (weather?: RecommendationContextData["weather"]): Weat
 
 const weatherSnapshotByRequestId = new Map<number, WeatherResponse>();
 
-const recommendationVariants: RecommendationVariant[] = [
-  { type: "best" },
-  { type: "balanced" },
-  { type: "indoor" },
-  { type: "low-budget" },
-  { type: "short-walk" }
-];
+const MOOD_VARIANT_BY_MOOD: Record<string, RecommendationType> = {
+  조용한: "mood-quiet",
+  힙한: "mood-hip",
+  낭만적인: "mood-poetic",
+  로맨틱: "mood-romantic",
+  활기찬: "mood-lively",
+  고즈넉한: "mood-calm",
+  현대적인: "mood-modern",
+  감성적인: "mood-emotional",
+  자연친화적: "mood-nature"
+};
+
+const buildRecommendationVariants = (moods: string[] = []): RecommendationVariant[] => {
+  if (!moods.length) {
+    return [{ type: "best" }, { type: "balanced" }, { type: "indoor" }, { type: "low-budget" }];
+  }
+
+  const moodVariants = moods
+    .map((mood): RecommendationVariant | undefined => {
+      const type = MOOD_VARIANT_BY_MOOD[mood];
+      return type ? { type, mood } : undefined;
+    })
+    .filter((variant): variant is RecommendationVariant => Boolean(variant));
+
+  const uniqueMoodVariants = [
+    ...new Map(moodVariants.map((variant) => [variant.type, variant])).values()
+  ];
+
+  return [...uniqueMoodVariants, { type: "best" as const }].slice(0, 4);
+};
 
 const uniqueStringArray = (items: string[]): string[] => [...new Set(items.filter(Boolean))];
-
-const congestionPenalty: Record<CongestionLevel, number> = {
-  low: 0,
-  medium: 4,
-  high: 12,
-  unknown: 3
-};
-
-const scoreApiCourse = (
-  course: CourseResponse,
-  budget?: number,
-  targetDurationHours?: number
-): number => {
-  const budgetPenalty =
-    typeof budget === "number" ? Math.max(0, course.totalCost - budget) / 1000 : 0;
-  const targetDurationMinute = (targetDurationHours ?? 4) * 60;
-  const durationPenalty =
-    course.duration > targetDurationMinute ? (course.duration - targetDurationMinute) / 8 : 0;
-  const diversityBonus = Math.min(course.places.length, 4) * 3;
-
-  return (
-    100 + diversityBonus - budgetPenalty - durationPenalty - congestionPenalty[course.congestion]
-  );
-};
 
 const placeSearchText = (place: CandidatePlace): string =>
   [
@@ -508,6 +511,128 @@ const placeSearchText = (place: CandidatePlace): string =>
 
 const textIncludesAny = (text: string, keywords: string[]): boolean =>
   keywords.some((keyword) => text.includes(keyword.toLowerCase()));
+
+const isIndoorVariantPlace = (place: CandidatePlace): boolean => {
+  const text = placeSearchText(place);
+  return textIncludesAny(text, [
+    "cafe",
+    "restaurant",
+    "카페",
+    "커피",
+    "디저트",
+    "베이커리",
+    "전시",
+    "문화",
+    "공연",
+    "박물관",
+    "미술관",
+    "갤러리",
+    "공간",
+    "식당",
+    "음식",
+    "맛집",
+    "실내",
+    "서점",
+    "영화관"
+  ]);
+};
+
+const isOutdoorVariantPlace = (place: CandidatePlace): boolean => {
+  const text = placeSearchText(place);
+  return textIncludesAny(text, ["공원", "산책", "자연", "야외", "둘레길", "한강", "숲", "하천"]);
+};
+
+const moodAffinityScore = (place: CandidatePlace, mood?: string): number => {
+  if (!mood) {
+    return 0;
+  }
+
+  const text = placeSearchText(place);
+  if (mood.includes("힙")) {
+    return textIncludesAny(text, [
+      "성수",
+      "홍대",
+      "연남",
+      "한남",
+      "편집샵",
+      "팝업",
+      "복합",
+      "갤러리",
+      "카페",
+      "전시"
+    ])
+      ? 3
+      : 0;
+  }
+
+  if (mood.includes("로맨틱") || mood.includes("낭만")) {
+    return textIncludesAny(text, [
+      "야경",
+      "한강",
+      "전망",
+      "공원",
+      "산책",
+      "카페",
+      "갤러리",
+      "문화",
+      "데이트"
+    ])
+      ? 3
+      : 0;
+  }
+
+  if (mood.includes("고즈넉") || mood.includes("조용")) {
+    return textIncludesAny(text, [
+      "궁",
+      "한옥",
+      "북촌",
+      "서촌",
+      "공원",
+      "산책",
+      "박물관",
+      "미술관",
+      "서점",
+      "문화"
+    ])
+      ? 3
+      : isIndoorVariantPlace(place)
+        ? 1
+        : 0;
+  }
+
+  if (mood.includes("현대")) {
+    return textIncludesAny(text, [
+      "ddp",
+      "디자인",
+      "현대",
+      "복합",
+      "미술관",
+      "전시",
+      "갤러리",
+      "공간"
+    ])
+      ? 3
+      : 0;
+  }
+
+  if (mood.includes("감성")) {
+    return textIncludesAny(text, ["카페", "갤러리", "전시", "문화", "서점", "디저트", "공간"])
+      ? 3
+      : 0;
+  }
+
+  if (mood.includes("자연친화")) {
+    return isOutdoorVariantPlace(place) ? 3 : 0;
+  }
+
+  if (mood.includes("활기")) {
+    return textIncludesAny(text, ["거리", "시장", "맛집", "관광", "상권", "홍대", "명동", "강남"])
+      ? 3
+      : 0;
+  }
+
+  return 0;
+};
 
 const normalizeVariantPlaceTitle = (title: string): string =>
   title
@@ -637,11 +762,25 @@ const estimateProjectedVariantDuration = (
 const sortCandidatesForVariant = (
   candidates: CandidatePlace[],
   scores: ScoredRecommendationPlace[] | undefined,
-  variant: RecommendationType
+  variant: RecommendationType,
+  mood?: string
 ): CandidatePlace[] => {
   const scoreById = new Map(scores?.map((score) => [score.placeId, score.totalScore]) ?? []);
+  const baseCandidates =
+    variant === "indoor"
+      ? candidates.filter(isIndoorVariantPlace)
+      : mood
+        ? candidates.filter((place) => moodAffinityScore(place, mood) > 0)
+        : candidates;
+  const pool =
+    variant === "indoor" ? baseCandidates : baseCandidates.length ? baseCandidates : candidates;
 
-  return [...candidates].sort((left, right) => {
+  return [...pool].sort((left, right) => {
+    const moodDiff = moodAffinityScore(right, mood) - moodAffinityScore(left, mood);
+    if (moodDiff !== 0) {
+      return moodDiff;
+    }
+
     if (variant === "low-budget") {
       const costDiff = estimateVariantCost(left) - estimateVariantCost(right);
       if (costDiff !== 0) {
@@ -660,16 +799,21 @@ const selectVariantPlace = (
   usedTitles: Set<string>,
   remainingBudget?: number,
   previousPlace?: CandidatePlace,
-  preferNearest = false
+  preferNearest = false,
+  options: { strictIndoor?: boolean; mood?: string } = {}
 ): CandidatePlace | undefined => {
   const available = pool.filter(
     (place) =>
       !usedIds.has(place.id) &&
       !usedTitles.has(normalizeVariantPlaceTitle(place.title)) &&
-      (remainingBudget === undefined || estimateVariantCost(place) <= remainingBudget)
+      (remainingBudget === undefined || estimateVariantCost(place) <= remainingBudget) &&
+      (!options.strictIndoor || isIndoorVariantPlace(place))
   );
   const matched = available.filter((place) => roleMatchesVariant(role, place));
-  const rawPool = matched.length ? matched : available;
+  const moodMatched = options.mood
+    ? available.filter((place) => moodAffinityScore(place, options.mood) > 0)
+    : [];
+  const rawPool = matched.length ? matched : moodMatched.length ? moodMatched : available;
   const sortedPool =
     preferNearest && previousPlace && hasCoordinate(previousPlace)
       ? [...rawPool].sort((left, right) => {
@@ -735,10 +879,23 @@ const variantRoles: Record<RecommendationType, CourseRole[]> = {
   balanced: ["cafe", "culture", "walk", "food", "attraction", "cafe", "culture", "food"],
   indoor: ["cafe", "culture", "food", "cafe", "culture", "food", "attraction", "cafe"],
   "low-budget": ["walk", "cafe", "culture", "walk", "attraction", "cafe", "culture", "food"],
-  "short-walk": ["cafe", "culture", "food", "cafe", "culture", "attraction", "food", "cafe"]
+  "short-walk": ["cafe", "culture", "food", "cafe", "culture", "attraction", "food", "cafe"],
+  "mood-quiet": ["cafe", "culture", "walk", "cafe", "culture", "food", "attraction", "cafe"],
+  "mood-hip": ["cafe", "culture", "attraction", "food", "cafe", "culture", "food", "attraction"],
+  "mood-poetic": ["walk", "cafe", "culture", "food", "attraction", "walk", "cafe", "culture"],
+  "mood-romantic": ["cafe", "walk", "culture", "food", "attraction", "cafe", "walk", "food"],
+  "mood-lively": ["attraction", "food", "cafe", "culture", "food", "attraction", "cafe", "walk"],
+  "mood-calm": ["culture", "walk", "cafe", "attraction", "food", "culture", "walk", "cafe"],
+  "mood-modern": ["culture", "cafe", "attraction", "food", "culture", "cafe", "attraction", "food"],
+  "mood-emotional": ["cafe", "culture", "cafe", "walk", "food", "culture", "cafe", "attraction"],
+  "mood-nature": ["walk", "cafe", "attraction", "food", "walk", "culture", "cafe", "walk"]
 };
 
-const buildVariantTitle = (state: SeoulMateGraphState, type: RecommendationType): string => {
+const buildVariantTitle = (
+  state: SeoulMateGraphState,
+  type: RecommendationType,
+  mood?: string
+): string => {
   const region = state.parsedRequest?.region ?? "서울";
   const purpose = state.parsedRequest?.purpose ?? "데이트";
   const label: Record<RecommendationType, string> = {
@@ -746,20 +903,28 @@ const buildVariantTitle = (state: SeoulMateGraphState, type: RecommendationType)
     balanced: "균형형",
     indoor: "실내 중심",
     "low-budget": "가성비",
-    "short-walk": "이동 적은"
+    "short-walk": "이동 적은",
+    "mood-quiet": mood ?? "조용한",
+    "mood-hip": mood ?? "힙한",
+    "mood-poetic": mood ?? "낭만적인",
+    "mood-romantic": mood ?? "로맨틱",
+    "mood-lively": mood ?? "활기찬",
+    "mood-calm": mood ?? "고즈넉한",
+    "mood-modern": mood ?? "현대적인",
+    "mood-emotional": mood ?? "감성적인",
+    "mood-nature": mood ?? "자연친화적"
   };
 
-  return `${region} ${label[type]} ${purpose} 코스`;
+  return type === "best"
+    ? `${region} GPT 추천 ${purpose} 코스`
+    : `${region} ${label[type]} ${purpose} 코스`;
 };
 
 const buildCourseVariant = async (
   state: SeoulMateGraphState,
-  type: RecommendationType
+  variant: RecommendationVariant
 ): Promise<RecommendationCourse | null> => {
-  if (type === "best" && state.course?.places.length) {
-    return state.course;
-  }
-
+  const { type, mood } = variant;
   const candidates = state.candidatePlaces ?? [];
   if (!candidates.length) {
     return null;
@@ -768,7 +933,11 @@ const buildCourseVariant = async (
   const durationHours = state.parsedRequest?.durationHours ?? 3;
   const placeCountRange = resolvePlaceCountRange(durationHours);
   const roles = variantRoles[type].slice(0, placeCountRange.max);
-  const sortedCandidates = sortCandidatesForVariant(candidates, state.scoredPlaces, type);
+  const sortedCandidates = sortCandidatesForVariant(candidates, state.scoredPlaces, type, mood);
+  if (!sortedCandidates.length) {
+    return null;
+  }
+
   const usedIds = new Set<number>();
   const usedTitles = new Set<string>();
   const selected: Array<{ role: CourseRole; place: CandidatePlace }> = [];
@@ -786,7 +955,8 @@ const buildCourseVariant = async (
       usedTitles,
       remainingBudget,
       selected[selected.length - 1]?.place,
-      type === "short-walk" || type === "balanced"
+      type === "short-walk" || type === "balanced",
+      { strictIndoor: type === "indoor", mood }
     );
 
     if (!place) {
@@ -833,7 +1003,7 @@ const buildCourseVariant = async (
   );
 
   return {
-    title: buildVariantTitle(state, type),
+    title: buildVariantTitle(state, type, mood),
     places: coursePlaces,
     totalScore:
       coursePlaces.reduce((sum, place) => sum + getScore(state.scoredPlaces, place.placeId), 0) /
@@ -854,7 +1024,7 @@ const fallbackVariantExplanation = (
       : `예상 비용은 ${variant.course.estimatedBudget.toLocaleString("ko-KR")}원입니다.`;
 
   return {
-    summary: `${buildVariantTitle(state, variant.type)}: ${placeNames} 순서로 이동 부담을 고려해 구성했습니다.`,
+    summary: `${variant.course.title}: ${placeNames} 순서로 이동 부담을 고려해 구성했습니다.`,
     reason: `${costText} 같은 후보 데이터와 실시간 컨텍스트 안에서 ${variant.type} 성격에 맞게 장소 유형과 동선을 다르게 조합했습니다.`,
     riskNotice: state.riskNotices?.join(" / ") ?? "",
     alternativeSuggestion:
@@ -864,103 +1034,14 @@ const fallbackVariantExplanation = (
   };
 };
 
-const withTimeout = async <T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  message: string
-): Promise<T> =>
-  Promise.race([
-    promise,
-    new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(message)), timeoutMs);
-    })
-  ]);
-
 const attachBatchExplanations = async (
   state: SeoulMateGraphState,
   variants: BuiltCourseVariant[]
 ): Promise<BuiltCourseVariant[]> => {
-  if (!variants.length) {
-    return variants;
-  }
-
-  try {
-    const response = await withTimeout(
-      openaiClient.createJsonResponse<BatchAiExplanationResponse>({
-        schemaName: "seoulmate_course_variant_explanations",
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            courses: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  type: {
-                    type: "string",
-                    enum: recommendationVariants.map((variant) => variant.type)
-                  },
-                  summary: { type: "string" },
-                  reason: { type: "string" },
-                  riskNotice: { type: "string" },
-                  alternativeSuggestion: { type: "string" }
-                },
-                required: ["type", "summary", "reason", "riskNotice", "alternativeSuggestion"]
-              }
-            }
-          },
-          required: ["courses"]
-        },
-        instructions:
-          "서울 데이트 코스 추천 결과를 한국어로 설명하세요. 제공된 각 course만 설명하고 장소를 새로 만들지 마세요. 내부 추론은 출력하지 말고, 동선/예산/날씨/혼잡도/첫 만남 적합성을 짧고 구체적으로 설명하세요.",
-        input: JSON.stringify({
-          request: state.parsedRequest,
-          context: state.contextData,
-          riskNotices: state.riskNotices,
-          courses: variants.map((variant) => ({
-            type: variant.type,
-            title: variant.course.title,
-            estimatedBudget: variant.course.estimatedBudget,
-            duration: courseDuration(variant.course.places),
-            places: variant.course.places.map((place) => ({
-              order: place.order,
-              title: place.title,
-              category: place.category,
-              moveTimeMinute: place.moveTimeMinute,
-              estimatedCost: place.estimatedCost
-            }))
-          }))
-        }),
-        maxOutputTokens: 1200
-      }),
-      3500,
-      "course explanation generation timed out"
-    );
-
-    const explanationByType = new Map(
-      response.courses.map((course) => [
-        course.type,
-        {
-          summary: course.summary,
-          reason: course.reason,
-          riskNotice: course.riskNotice || undefined,
-          alternativeSuggestion: course.alternativeSuggestion || undefined
-        } satisfies AiExplanation
-      ])
-    );
-
-    return variants.map((variant) => ({
-      ...variant,
-      explanation: explanationByType.get(variant.type) ?? fallbackVariantExplanation(state, variant)
-    }));
-  } catch {
-    return variants.map((variant) => ({
-      ...variant,
-      explanation: fallbackVariantExplanation(state, variant)
-    }));
-  }
+  return variants.map((variant) => ({
+    ...variant,
+    explanation: fallbackVariantExplanation(state, variant)
+  }));
 };
 
 const saveBuiltCourseVariant = async (
@@ -1181,20 +1262,22 @@ export const recommendationService = {
       graphInput.rawInput,
       graphInput.parsedRequest
     );
-    const targetCourseCount = (state.candidatePlaces?.length ?? 0) >= 30 ? 4 : 3;
+    const recommendationVariants = buildRecommendationVariants(state.parsedRequest?.mood);
     const builtVariants: BuiltCourseVariant[] = [];
     const seenSignatures = new Set<string>();
 
-    for (const variant of recommendationVariants.slice(0, targetCourseCount)) {
-      const course = await buildCourseVariant(state, variant.type);
+    for (const variant of recommendationVariants) {
+      const course = await buildCourseVariant(state, variant);
       if (!course?.places.length) {
         continue;
       }
 
-      const signature = course.places
-        .map((place) => place.placeId)
-        .sort((left, right) => left - right)
-        .join("|");
+      const signature =
+        `${variant.type}:` +
+        course.places
+          .map((place) => place.placeId)
+          .sort((left, right) => left - right)
+          .join("|");
 
       if (signature && !seenSignatures.has(signature)) {
         seenSignatures.add(signature);
@@ -1209,11 +1292,6 @@ export const recommendationService = {
     const warnings = uniqueStringArray(state.warnings ?? []);
     const courses = savedVariants
       .map((variant) => toCourseResponseFromVariant(variant, state.contextData))
-      .sort(
-        (left, right) =>
-          scoreApiCourse(right, state.parsedRequest?.budget, state.parsedRequest?.durationHours) -
-          scoreApiCourse(left, state.parsedRequest?.budget, state.parsedRequest?.durationHours)
-      )
       .map((course, index) => ({
         ...course,
         recommendationRank: index + 1,
