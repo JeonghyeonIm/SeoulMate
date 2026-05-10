@@ -142,6 +142,41 @@ export interface CourseDetail {
 const serializePreferredCategory = (categories?: string[]): string | null =>
   categories?.length ? categories.join(",") : null;
 
+const ALLOWED_MOODS = [
+  "조용한",
+  "힙한",
+  "낭만적인",
+  "로맨틱",
+  "활기찬",
+  "고즈넉한",
+  "현대적인",
+  "감성적인",
+  "자연친화적"
+];
+
+const normalizeMood = (value: string): string | undefined => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  if (ALLOWED_MOODS.includes(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.includes("로맨틱") || normalized.includes("로맨스")) return "로맨틱";
+  if (normalized.includes("낭만")) return "낭만적인";
+  if (normalized.includes("자연") || normalized.includes("숲") || normalized.includes("야외")) {
+    return "자연친화적";
+  }
+
+  return ALLOWED_MOODS.find((mood) => normalized.includes(mood.replace(/적인$|한$|적$/g, "")));
+};
+
+const normalizeMoods = (values: string[]): string[] => [
+  ...new Set(values.map(normalizeMood).filter((mood): mood is string => Boolean(mood)))
+];
+
 const durationToHours = (duration?: string): number | undefined => {
   if (!duration) {
     return undefined;
@@ -234,7 +269,7 @@ const buildStructuredRecommendationInput = (
   const region = typeof payload.region === "string" ? payload.region.trim() : "";
   const budget = Number(payload.budget);
   const durationHours = durationToHours(payload.duration);
-  const vibes = normalizeStringArray(payload.vibes, "vibes", true);
+  const vibes = normalizeMoods(normalizeStringArray(payload.vibes, "vibes", true));
   const dateTime = readRequestDateTime(payload.dateTime);
   const purpose = typeof payload.purpose === "string" ? payload.purpose.trim() : undefined;
   const query = typeof payload.query === "string" ? payload.query.trim() : legacyInput;
