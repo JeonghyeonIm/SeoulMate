@@ -91,14 +91,34 @@ const hasCoordinate = (place: CandidatePlace): boolean =>
 
 const isMapVerified = (place: CandidatePlace): boolean => place.mapVerification?.verified === true;
 
-const estimatedTimeByRole = (role: CourseRole): number =>
-  ({
+const resolvePlaceCountRange = (durationHours: number): { min: number; max: number } => {
+  if (durationHours <= 2) return { min: 1, max: 2 };
+  if (durationHours <= 4) return { min: 2, max: 3 };
+  if (durationHours <= 6) return { min: 3, max: 4 };
+  if (durationHours <= 8) return { min: 4, max: 5 };
+  if (durationHours <= 10) return { min: 5, max: 6 };
+  if (durationHours <= 12) return { min: 6, max: 7 };
+  return { min: 7, max: 8 };
+};
+
+const estimatedTimeByRole = (role: CourseRole, durationHours: number): number => {
+  const compactDurations: Record<CourseRole, number> = {
+    cafe: 45,
+    culture: 55,
+    walk: 40,
+    food: 55,
+    attraction: 45
+  };
+  const defaultDurations: Record<CourseRole, number> = {
     cafe: 60,
     culture: 80,
     walk: 50,
     food: 70,
     attraction: 60
-  })[role];
+  };
+
+  return (durationHours <= 2 ? compactDurations : defaultDurations)[role];
+};
 
 const roleLabel = (role: CourseRole, fallback: string): string =>
   ({
@@ -129,16 +149,62 @@ const resolveRoles = (state: SeoulMateGraphState): CourseRole[] => {
     else pushRole("attraction");
   }
 
-  const defaults: CourseRole[] = ["cafe", "culture", "walk", "food"];
+  const defaults: CourseRole[] = [
+    "cafe",
+    "culture",
+    "walk",
+    "food",
+    "attraction",
+    "cafe",
+    "culture",
+    "food"
+  ];
   for (const role of defaults) {
-    pushRole(role);
+    roles.push(role);
   }
 
   const durationHours = state.parsedRequest?.durationHours ?? 3;
-  const count = durationHours <= 2 ? 2 : durationHours >= 5 ? 4 : 3;
+  const count = resolvePlaceCountRange(durationHours).max;
 
   return roles.slice(0, count);
 };
+
+const estimateMoveTimeMinute = (
+  previousPlace: CandidatePlace | undefined,
+  nextPlace: CandidatePlace
+): number => {
+  if (!previousPlace || !hasCoordinate(previousPlace) || !hasCoordinate(nextPlace)) {
+    return 0;
+  }
+
+  const distanceMeter = mapClient.calculateDistanceMeter(
+    {
+      latitude: previousPlace.latitude as number,
+      longitude: previousPlace.longitude as number
+    },
+    {
+      latitude: nextPlace.latitude as number,
+      longitude: nextPlace.longitude as number
+    }
+  );
+
+  return mapClient.estimateWalkingDurationMinute(distanceMeter);
+};
+
+const estimateProjectedDuration = (
+  selected: Array<{ role: CourseRole; place: CandidatePlace }>,
+  next: { role: CourseRole; place: CandidatePlace },
+  durationHours: number
+): number =>
+  selected.reduce(
+    (sum, item, index) =>
+      sum +
+      estimatedTimeByRole(item.role, durationHours) +
+      estimateMoveTimeMinute(selected[index - 1]?.place, item.place),
+    0
+  ) +
+  estimatedTimeByRole(next.role, durationHours) +
+  estimateMoveTimeMinute(selected[selected.length - 1]?.place, next.place);
 
 const sortPlacesByScore = (
   places: CandidatePlace[],
@@ -168,13 +234,11 @@ const selectPlace = (
   );
   const rawPool = diverseRoleMatches.length
     ? diverseRoleMatches
-    : usedRoles.has(role) && diverseAvailable.length
-      ? diverseAvailable
-      : roleMatchesPlaces.length
-        ? roleMatchesPlaces
-        : diverseAvailable.length
-          ? diverseAvailable
-          : available;
+    : roleMatchesPlaces.length
+      ? roleMatchesPlaces
+      : diverseAvailable.length
+        ? diverseAvailable
+        : available;
   const pool =
     previousPlace && hasCoordinate(previousPlace)
       ? [...rawPool].sort((a, b) => {
@@ -247,11 +311,14 @@ export const buildCourseNode = async (
   }
 
   const sortedPlaces = sortPlacesByScore(candidatePlaces, scoredPlaces);
+  const durationHours = state.parsedRequest?.durationHours ?? 3;
   const scoreById = new Map(scoredPlaces.map((score) => [score.placeId, score.totalScore]));
   const selected: Array<{ role: CourseRole; place: CandidatePlace }> = [];
   const usedPlaceIds = new Set<number>();
   const usedPlaceTitles = new Set<string>();
   const usedRoles = new Set<CourseRole>();
+  const placeCountRange = resolvePlaceCountRange(durationHours);
+  const maxDurationMinute = durationHours > 12 ? Number.POSITIVE_INFINITY : durationHours * 60;
   let remainingBudget = state.parsedRequest?.budget;
 
   for (const role of resolveRoles(state)) {
@@ -266,6 +333,11 @@ export const buildCourseNode = async (
     );
     if (!place) {
       continue;
+    }
+
+    const projectedDuration = estimateProjectedDuration(selected, { role, place }, durationHours);
+    if (selected.length >= placeCountRange.min && projectedDuration > maxDurationMinute) {
+      break;
     }
 
     selected.push({ role, place });
@@ -288,7 +360,9 @@ export const buildCourseNode = async (
     placeId: place.id,
     title: place.title,
     category: roleMatches(role, place) ? roleLabel(role, place.category) : place.category,
-    estimatedTimeMinute: roleMatches(role, place) ? estimatedTimeByRole(role) : 60,
+    estimatedTimeMinute: roleMatches(role, place)
+      ? estimatedTimeByRole(role, durationHours)
+      : estimatedTimeByRole("attraction", durationHours),
     estimatedCost: estimateCost(place),
     address: place.address,
     latitude: place.latitude,
