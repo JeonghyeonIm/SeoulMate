@@ -94,6 +94,11 @@ const REGION_PROFILES: RegionProfile[] = [
     aliases: ["성수", "성수동", "서울숲", "뚝섬"]
   },
   {
+    keywords: ["왕십리", "한양대", "행당"],
+    districts: ["성동구"],
+    aliases: ["왕십리", "왕십리역", "한양대", "한양대역", "행당", "행당동", "상왕십리"]
+  },
+  {
     keywords: ["서울숲", "뚝섬"],
     districts: ["성동구"],
     aliases: ["서울숲", "뚝섬", "성수"]
@@ -167,10 +172,104 @@ const REGION_PROFILES: RegionProfile[] = [
     keywords: ["반포", "서초", "양재"],
     districts: ["서초구"],
     aliases: ["반포", "서초", "양재"]
+  },
+  {
+    keywords: ["천호", "암사", "길동", "둔촌", "명일", "고덕", "상일", "강동"],
+    districts: ["강동구"],
+    aliases: ["천호", "암사", "길동", "둔촌", "명일", "고덕", "상일", "강동"]
+  },
+  {
+    keywords: ["미아", "수유", "번동", "우이", "강북"],
+    districts: ["강북구"],
+    aliases: ["미아", "수유", "번동", "우이", "북서울꿈의숲", "강북"]
+  },
+  {
+    keywords: [
+      "마곡",
+      "발산",
+      "우장산",
+      "화곡",
+      "가양",
+      "등촌",
+      "개화",
+      "방화",
+      "김포공항",
+      "강서"
+    ],
+    districts: ["강서구"],
+    aliases: ["마곡", "발산", "우장산", "화곡", "가양", "등촌", "개화", "방화", "김포공항", "강서"]
+  },
+  {
+    keywords: ["구디", "구로디지털단지", "신도림", "고척", "개봉", "오류", "구로"],
+    districts: ["구로구"],
+    aliases: ["구디", "구로디지털단지", "신도림", "고척", "개봉", "오류", "구로"]
+  },
+  {
+    keywords: ["가산", "가산디지털단지", "독산", "시흥", "금천"],
+    districts: ["금천구"],
+    aliases: ["가산", "가산디지털단지", "독산", "시흥", "금천"]
+  },
+  {
+    keywords: ["공릉", "태릉", "하계", "중계", "상계", "노원", "월계", "광운대"],
+    districts: ["노원구"],
+    aliases: ["공릉", "태릉", "하계", "중계", "상계", "노원", "월계", "광운대"]
+  },
+  {
+    keywords: ["창동", "쌍문", "방학", "도봉", "도봉산"],
+    districts: ["도봉구"],
+    aliases: ["창동", "쌍문", "방학", "도봉", "도봉산"]
+  },
+  {
+    keywords: ["청량리", "회기", "외대앞", "경희대", "답십리", "장안", "전농", "제기", "동대문구"],
+    districts: ["동대문구"],
+    aliases: ["청량리", "회기", "외대앞", "경희대", "답십리", "장안", "전농", "제기", "동대문구"]
+  },
+  {
+    keywords: ["사당", "이수", "노량진", "흑석", "상도", "신대방", "동작"],
+    districts: ["동작구"],
+    aliases: ["사당", "이수", "노량진", "흑석", "상도", "신대방", "동작"]
+  },
+  {
+    keywords: ["성신여대", "안암", "고려대", "길음", "정릉", "돈암", "월곡", "석계", "성북"],
+    districts: ["성북구"],
+    aliases: ["성신여대", "안암", "고려대", "길음", "정릉", "돈암", "월곡", "석계", "성북"]
+  },
+  {
+    keywords: ["목동", "오목교", "신정", "신월", "양천"],
+    districts: ["양천구"],
+    aliases: ["목동", "오목교", "신정", "신월", "양천"]
+  },
+  {
+    keywords: ["불광", "연신내", "구파발", "응암", "새절", "녹번", "은평", "진관"],
+    districts: ["은평구"],
+    aliases: ["불광", "연신내", "구파발", "응암", "새절", "녹번", "은평", "진관"]
+  },
+  {
+    keywords: ["상봉", "망우", "면목", "사가정", "먹골", "중화", "중랑"],
+    districts: ["중랑구"],
+    aliases: ["상봉", "망우", "면목", "사가정", "먹골", "중화", "중랑"]
   }
 ];
 
 const SEOUL_WIDE_REGIONS = ["서울", "서울시", "서울특별시"];
+const NON_SEOUL_REGIONS = [
+  "부산",
+  "대구",
+  "인천",
+  "광주",
+  "대전",
+  "울산",
+  "세종",
+  "경기",
+  "강원",
+  "충북",
+  "충남",
+  "전북",
+  "전남",
+  "경북",
+  "경남",
+  "제주"
+];
 
 const extractText = (value: unknown): string => {
   if (value === null || value === undefined) {
@@ -277,6 +376,17 @@ const resolveRegion = (region?: string): RegionResolution | undefined => {
 
   const normalizedRegion = normalizeRegionText(rawRegion);
 
+  if (
+    NON_SEOUL_REGIONS.some((keyword) => normalizedRegion.includes(normalizeRegionText(keyword)))
+  ) {
+    return {
+      isSupported: false,
+      districts: [],
+      aliases: [],
+      error: `현재 SeoulMate는 서울 지역 공공데이터 기반 추천만 지원합니다. 입력 지역: ${rawRegion}`
+    };
+  }
+
   if (SEOUL_WIDE_REGIONS.some((keyword) => normalizedRegion === normalizeRegionText(keyword))) {
     return {
       isSupported: true,
@@ -312,10 +422,9 @@ const resolveRegion = (region?: string): RegionResolution | undefined => {
   }
 
   return {
-    isSupported: false,
+    isSupported: true,
     districts: [],
-    aliases: [],
-    error: `현재 SeoulMate는 서울 지역 공공데이터 기반 추천만 지원합니다. 입력 지역: ${rawRegion}`
+    aliases: [rawRegion]
   };
 };
 
@@ -415,7 +524,7 @@ export const fetchCandidatePlacesNode = async (
           });
 
     const broadFallback =
-      hasRegionFilter || primary.length || regionalFallback.length || generalFallback.length
+      primary.length || regionalFallback.length || generalFallback.length
         ? []
         : await publicDataRepository.findRecommendationCandidates({
             sourceDatasets,
