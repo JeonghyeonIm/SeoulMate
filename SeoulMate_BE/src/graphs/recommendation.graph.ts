@@ -45,11 +45,48 @@ const graph = new StateGraph(RecommendationStateAnnotation)
   .addEdge("formatRecommendationResult", END)
   .compile();
 
+const graphWithoutAiExplanation = new StateGraph(RecommendationStateAnnotation)
+  .addNode("parseUserRequest", parseUserRequestNode)
+  .addNode("fetchCandidatePlaces", fetchCandidatePlacesNode)
+  .addNode("verifyCandidatePlaces", verifyCandidatePlacesNode)
+  .addNode("fetchContextData", fetchContextDataNode)
+  .addNode("scorePlaces", scorePlacesNode)
+  .addNode("buildCourse", buildCourseNode)
+  .addNode("validateRecommendation", validateRecommendationNode)
+  .addNode("buildAlternativeCourse", buildAlternativeCourseNode)
+  .addNode("validateRecommendationFinal", validateRecommendationNode)
+  .addNode("generateRiskNotice", generateRiskNoticeNode)
+  .addNode("formatRecommendationResult", formatRecommendationResultNode)
+  .addEdge(START, "parseUserRequest")
+  .addEdge("parseUserRequest", "fetchCandidatePlaces")
+  .addEdge("fetchCandidatePlaces", "verifyCandidatePlaces")
+  .addEdge("verifyCandidatePlaces", "fetchContextData")
+  .addEdge("fetchContextData", "scorePlaces")
+  .addEdge("scorePlaces", "buildCourse")
+  .addEdge("buildCourse", "validateRecommendation")
+  .addEdge("validateRecommendation", "buildAlternativeCourse")
+  .addEdge("buildAlternativeCourse", "validateRecommendationFinal")
+  .addEdge("validateRecommendationFinal", "generateRiskNotice")
+  .addEdge("generateRiskNotice", "formatRecommendationResult")
+  .addEdge("formatRecommendationResult", END)
+  .compile();
+
 export const runRecommendationGraph = async (
   input: string,
   parsedRequest?: ParsedRecommendationRequest
 ): Promise<SeoulMateGraphState> =>
   graph.invoke({
+    rawInput: input,
+    parsedRequest,
+    warnings: [],
+    errors: []
+  });
+
+export const runRecommendationGraphWithoutAiExplanation = async (
+  input: string,
+  parsedRequest?: ParsedRecommendationRequest
+): Promise<SeoulMateGraphState> =>
+  graphWithoutAiExplanation.invoke({
     rawInput: input,
     parsedRequest,
     warnings: [],

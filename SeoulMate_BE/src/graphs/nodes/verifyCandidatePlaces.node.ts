@@ -1,7 +1,11 @@
 import { mapClient, type KakaoLocalPlace } from "../../clients/map.client";
-import type { CandidatePlace, SeoulMateGraphState, SeoulMateGraphUpdate } from "../recommendation.state";
+import type {
+  CandidatePlace,
+  SeoulMateGraphState,
+  SeoulMateGraphUpdate
+} from "../recommendation.state";
 
-const MAX_VERIFICATION_REQUESTS = 50;
+const MAX_VERIFICATION_REQUESTS = 12;
 const MIN_VERIFIED_CANDIDATES = 8;
 const CONCURRENCY = 4;
 
@@ -30,7 +34,8 @@ const isTrustedPlace = (place: CandidatePlace): boolean =>
   Boolean(place.sourceDataset && TRUSTED_SOURCE_DATASETS.has(place.sourceDataset));
 
 const looksLikeEvent = (place: CandidatePlace): boolean =>
-  place.sourceDataset === "culturalEventInfo" || /행사|축제|페스티벌|공연|전시/.test(place.category);
+  place.sourceDataset === "culturalEventInfo" ||
+  /행사|축제|페스티벌|공연|전시/.test(place.category);
 
 const simplifyAddress = (address?: string): string | undefined => {
   const cleaned = address
@@ -47,13 +52,22 @@ const simplifyAddress = (address?: string): string | undefined => {
 
 const buildQueries = (place: CandidatePlace, region?: string): string[] => {
   const queries = looksLikeEvent(place)
-    ? [simplifyAddress(place.address), place.title, `${simplifyAddress(place.address) ?? ""} ${region ?? ""}`]
-    : [place.title, `${place.title} ${region ?? place.region ?? ""}`, simplifyAddress(place.address)];
+    ? [
+        simplifyAddress(place.address),
+        place.title,
+        `${simplifyAddress(place.address) ?? ""} ${region ?? ""}`
+      ]
+    : [
+        place.title,
+        `${place.title} ${region ?? place.region ?? ""}`,
+        simplifyAddress(place.address)
+      ];
 
-  return [...new Set(queries.map((query) => query?.trim()).filter((query): query is string => Boolean(query)))].slice(
-    0,
-    3
-  );
+  return [
+    ...new Set(
+      queries.map((query) => query?.trim()).filter((query): query is string => Boolean(query))
+    )
+  ].slice(0, 2);
 };
 
 const stringScore = (candidate: string, kakao: string): number => {
@@ -67,7 +81,10 @@ const stringScore = (candidate: string, kakao: string): number => {
   if (left === right) return 45;
   if (left.includes(right) || right.includes(left)) return 35;
 
-  const leftTokens = candidate.split(/\s+/).map(normalize).filter((token) => token.length >= 2);
+  const leftTokens = candidate
+    .split(/\s+/)
+    .map(normalize)
+    .filter((token) => token.length >= 2);
   const matches = leftTokens.filter((token) => right.includes(token)).length;
   return Math.min(25, matches * 8);
 };
@@ -101,10 +118,7 @@ const scoreMatch = (place: CandidatePlace, kakaoPlace: KakaoLocalPlace): number 
   return Math.round(score);
 };
 
-const verifyPlace = async (
-  place: CandidatePlace,
-  region?: string
-): Promise<CandidatePlace> => {
+const verifyPlace = async (place: CandidatePlace, region?: string): Promise<CandidatePlace> => {
   const coordinate = hasCoordinate(place)
     ? { latitude: place.latitude as number, longitude: place.longitude as number }
     : undefined;
@@ -195,7 +209,9 @@ export const verifyCandidatePlacesNode = async (
   const verificationTargets = candidatePlaces
     .filter((place) => hasCoordinate(place) || isTrustedPlace(place))
     .slice(0, MAX_VERIFICATION_REQUESTS);
-  const skipped = candidatePlaces.filter((place) => !verificationTargets.some((target) => target.id === place.id));
+  const skipped = candidatePlaces.filter(
+    (place) => !verificationTargets.some((target) => target.id === place.id)
+  );
   const verifiedTargets = await verifyInBatches(verificationTargets, state.parsedRequest?.region);
   const verified = verifiedTargets.filter((place) => place.mapVerification?.verified);
   const trustedFallback = verifiedTargets.filter(
@@ -212,7 +228,9 @@ export const verifyCandidatePlacesNode = async (
 
   const errors = verified.length
     ? []
-    : ["Kakao Local place verification found no confident matches; using DB candidates with coordinates."];
+    : [
+        "Kakao Local place verification found no confident matches; using DB candidates with coordinates."
+      ];
 
   return {
     candidatePlaces: ranked,
