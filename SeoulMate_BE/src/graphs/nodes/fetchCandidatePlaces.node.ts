@@ -342,6 +342,46 @@ const mapCandidate = (item: PublicDataset): CandidatePlace => ({
 const hasValidCoordinates = (place: CandidatePlace): boolean =>
   Number.isFinite(place.latitude) && Number.isFinite(place.longitude);
 
+const parseEventDate = (value: unknown): Date | undefined => {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return undefined;
+  }
+
+  const compact = text.match(/(20\d{2})(\d{2})(\d{2})/);
+  const dashed = text.match(/(20\d{2})[-./년\s]+(\d{1,2})[-./월\s]+(\d{1,2})/);
+  const matched = compact ?? dashed;
+  if (!matched) {
+    return undefined;
+  }
+
+  const [, year, month, day] = matched;
+  const parsed = new Date(
+    `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T23:59:59+09:00`
+  );
+
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const isExpiredEvent = (place: CandidatePlace, targetDateTime?: string): boolean => {
+  if (place.sourceDataset !== "culturalEventInfo") {
+    return false;
+  }
+
+  const endDate = parseEventDate(place.metadata?.endDate ?? place.metadata?.displayDate);
+  if (!endDate) {
+    return false;
+  }
+
+  const target = targetDateTime ? new Date(targetDateTime) : new Date();
+  const reference = Number.isNaN(target.getTime()) ? new Date() : target;
+  return endDate.getTime() < reference.getTime();
+};
+
 const resolveSourceDatasets = (request?: ParsedRecommendationRequest): string[] => {
   const categories = request?.preferredCategories ?? [];
   const selected = new Set<string>();
@@ -539,7 +579,8 @@ export const fetchCandidatePlacesNode = async (
       ...broadFallback
     ])
       .map(mapCandidate)
-      .filter(hasValidCoordinates);
+      .filter(hasValidCoordinates)
+      .filter((place) => !isExpiredEvent(place, request?.dateTime));
 
     return {
       candidatePlaces,
