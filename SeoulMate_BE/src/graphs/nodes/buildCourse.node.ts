@@ -8,10 +8,122 @@ import type {
   SeoulMateGraphUpdate
 } from "../recommendation.state";
 
-type CourseRole = "cafe" | "culture" | "walk" | "food" | "attraction";
+type CourseRole =
+  | "cafe"
+  | "culture"
+  | "walk"
+  | "food"
+  | "nightlife"
+  | "karaoke"
+  | "activity"
+  | "camping"
+  | "amusement"
+  | "attraction";
 
 const includesAny = (text: string, keywords: string[]): boolean =>
   keywords.some((keyword) => text.includes(keyword.toLowerCase()));
+
+const NIGHTLIFE_KEYWORDS = [
+  "\uc220\uc9d1",
+  "2\ucc28",
+  "\ud638\ud504\uc9d1",
+  "\uc8fc\uc810",
+  "\ud638\ud504",
+  "\ud3ec\ucc28",
+  "\ub9e5\uc8fc",
+  "\uc640\uc778",
+  "\uce75\ud14c\uc77c",
+  "\uc774\uc790\uce74\uc57c",
+  "\ud38d",
+  "\ud558\uc774\ubcfc",
+  "\ub9c9\uac78\ub9ac",
+  "\ub9c9\uac78\ub9ac\uc9d1",
+  "\uc804\ud1b5\uc8fc\uc810",
+  "\ub8e8\ud504\ud0d1\ubc14",
+  "\ud63c\uc220",
+  "\uac10\uc131\uc8fc\uc810",
+  "\ud074\ub7fd",
+  "\ub098\uc774\ud2b8",
+  "\uc815\uc885/\ub300\ud3ec\uc9d1/\uc18c\uc8fc\ubc29",
+  "\ud638\ud504/\ud1b5\ub2ed",
+  "club",
+  "bar",
+  "pub"
+];
+
+const CHICKEN_PIZZA_KEYWORDS = [
+  "\uce58\ud0a8",
+  "\ud1b5\ub2ed",
+  "\ud53c\uc790",
+  "\ud53c\uc790\uc9d1",
+  "chicken",
+  "pizza"
+];
+
+const KARAOKE_KEYWORDS = [
+  "\ub178\ub798\ubc29",
+  "\ub178\ub798\uc5f0\uc2b5\uc7a5",
+  "\ucf54\uc778\ub178\ub798\ubc29",
+  "\ub3d9\uc804\ub178\ub798\uc5f0\uc2b5\uc7a5",
+  "karaoke"
+];
+
+const ACTIVITY_KEYWORDS = [
+  "\ubc29\ud0c8\ucd9c",
+  "\ubcf4\ub4dc\uac8c\uc784",
+  "\ubcf4\ub4dc\uac8c\uc784\uce74\ud398",
+  "\ucc1c\uc9c8\ubc29",
+  "\ubcfc\ub9c1",
+  "\ub2f9\uad6c",
+  "\ub2f9\uad6c\uc7a5",
+  "\ub9cc\ud654\uce74\ud398",
+  "\uacf5\ubc29",
+  "\uc6d0\ub370\uc774\ud074\ub798\uc2a4",
+  "\ud5a5\uc218",
+  "\ub3c4\uc790\uae30",
+  "\ud074\ub77c\uc774\ubc0d",
+  "vr",
+  "\uc544\ucf00\uc774\ub4dc",
+  "\uc2e4\ub0b4\ub180\uac70\ub9ac",
+  "\uc561\ud2f0\ube44\ud2f0",
+  "\uccb4\ud5d8",
+  "\ubcf5\ud569\uc720\ud1b5\uac8c\uc784\uc81c\uacf5\uc5c5",
+  "\uccb4\ub825\ub2e8\ub828\uc7a5\uc5c5"
+];
+
+const CAMPING_KEYWORDS = [
+  "\ucea0\ud551",
+  "\ucea0\ud551\uc7a5",
+  "\uc57c\uc601",
+  "\uae00\ub7a8\ud551",
+  "\ubc14\ubca0\ud050",
+  "\ud53c\ud06c\ub2c9\uc7a5",
+  "\ud53c\ud06c\ub2c9"
+];
+
+const AMUSEMENT_KEYWORDS = [
+  "\ub180\uc774\uc2dc\uc124",
+  "\ub180\uc774\uacf5\uc6d0",
+  "\ud14c\ub9c8\ud30c\ud06c",
+  "\uc5b4\ud2b8\ub799\uc158",
+  "\uc6cc\ud130\ud30c\ud06c",
+  "\uc5b4\ub4dc\ubca4\ucc98",
+  "\ub86f\ub370\uc6d4\ub4dc",
+  "\uc5b4\ub9b0\uc774\ub300\uacf5\uc6d0",
+  "\ud5c8\uac00\ud14c\ub9c8\ud30c\ud06c\uc5c5"
+];
+
+const AMUSEMENT_REGION_HINTS = [
+  "\uc7a0\uc2e4",
+  "\uc1a1\ud30c",
+  "\ub86f\ub370\uc6d4\ub4dc",
+  "\uc5b4\ub9b0\uc774\ub300\uacf5\uc6d0",
+  "\ub2a5\ub3d9",
+  "\uad11\uc9c4",
+  "\ubb38\uc815",
+  "\ud30c\ud06c\ud558\ube44\uc624",
+  "\uc6cc\ud130\ud0b9\ub364"
+];
 
 const placeText = (place: CandidatePlace): string =>
   [
@@ -52,8 +164,32 @@ const estimateCost = (place: CandidatePlace): number => {
     return 15000;
   }
 
+  if (includesAny(text, CHICKEN_PIZZA_KEYWORDS)) {
+    return 15000;
+  }
+
   if (includesAny(text, ["문화", "전시", "공연", "박물관"])) {
     return 12000;
+  }
+
+  if (includesAny(text, NIGHTLIFE_KEYWORDS)) {
+    return 18000;
+  }
+
+  if (includesAny(text, KARAOKE_KEYWORDS)) {
+    return 12000;
+  }
+
+  if (includesAny(text, ACTIVITY_KEYWORDS)) {
+    return 18000;
+  }
+
+  if (includesAny(text, CAMPING_KEYWORDS)) {
+    return 20000;
+  }
+
+  if (includesAny(text, AMUSEMENT_KEYWORDS)) {
+    return 30000;
   }
 
   return 8000;
@@ -61,6 +197,26 @@ const estimateCost = (place: CandidatePlace): number => {
 
 const roleMatches = (role: CourseRole, place: CandidatePlace): boolean => {
   const text = placeText(place);
+
+  if (role === "nightlife") {
+    return includesAny(text, NIGHTLIFE_KEYWORDS);
+  }
+
+  if (role === "karaoke") {
+    return includesAny(text, KARAOKE_KEYWORDS);
+  }
+
+  if (role === "activity") {
+    return includesAny(text, ACTIVITY_KEYWORDS);
+  }
+
+  if (role === "camping") {
+    return includesAny(text, CAMPING_KEYWORDS);
+  }
+
+  if (role === "amusement") {
+    return includesAny(text, AMUSEMENT_KEYWORDS);
+  }
 
   if (role === "cafe") {
     return includesAny(text, ["카페", "커피", "디저트", "베이커리", "휴게"]);
@@ -74,6 +230,10 @@ const roleMatches = (role: CourseRole, place: CandidatePlace): boolean => {
     return includesAny(text, ["공원", "산책", "자연", "숲", "한강", "야외"]);
   }
 
+  if (role === "food" && includesAny(text, CHICKEN_PIZZA_KEYWORDS)) {
+    return true;
+  }
+
   if (role === "food") {
     return includesAny(text, ["음식", "식당", "맛집", "restaurant", "인허가"]);
   }
@@ -82,7 +242,18 @@ const roleMatches = (role: CourseRole, place: CandidatePlace): boolean => {
 };
 
 const inferCourseRole = (place: CandidatePlace): CourseRole => {
-  const roles: CourseRole[] = ["cafe", "culture", "walk", "food", "attraction"];
+  const roles: CourseRole[] = [
+    "nightlife",
+    "karaoke",
+    "activity",
+    "camping",
+    "amusement",
+    "cafe",
+    "culture",
+    "walk",
+    "food",
+    "attraction"
+  ];
   return roles.find((role) => roleMatches(role, place)) ?? "attraction";
 };
 
@@ -107,6 +278,11 @@ const estimatedTimeByRole = (role: CourseRole, durationHours: number): number =>
     culture: 55,
     walk: 40,
     food: 55,
+    nightlife: 75,
+    karaoke: 70,
+    activity: 80,
+    camping: 180,
+    amusement: 180,
     attraction: 45
   };
   const defaultDurations: Record<CourseRole, number> = {
@@ -114,6 +290,11 @@ const estimatedTimeByRole = (role: CourseRole, durationHours: number): number =>
     culture: 80,
     walk: 50,
     food: 70,
+    nightlife: 90,
+    karaoke: 80,
+    activity: 90,
+    camping: 210,
+    amusement: 210,
     attraction: 60
   };
 
@@ -126,11 +307,20 @@ const roleLabel = (role: CourseRole, fallback: string): string =>
     culture: "문화공간",
     walk: "산책",
     food: "음식점",
+    nightlife: "\uc220\uc9d1",
+    karaoke: "\ub178\ub798\ubc29",
+    activity: "\uc2e4\ub0b4\ub180\uac70\ub9ac",
+    camping: "\ucea0\ud551\uc7a5",
+    amusement: "\ub180\uc774\uc2dc\uc124",
     attraction: fallback
   })[role];
 
 const resolveRoles = (state: SeoulMateGraphState): CourseRole[] => {
   const categories = state.parsedRequest?.preferredCategories ?? [];
+  const mood = state.parsedRequest?.mood ?? [];
+  const region = state.parsedRequest?.region ?? "";
+  const durationHours = state.parsedRequest?.durationHours ?? 3;
+  const budget = state.parsedRequest?.budget;
   const roles: CourseRole[] = [];
   const pushRole = (...nextRoles: CourseRole[]): void => {
     for (const nextRole of nextRoles) {
@@ -141,12 +331,26 @@ const resolveRoles = (state: SeoulMateGraphState): CourseRole[] => {
   };
 
   for (const category of categories) {
-    if (includesAny(category, ["카페", "커피"])) pushRole("cafe");
+    if (includesAny(category, NIGHTLIFE_KEYWORDS)) pushRole("nightlife");
+    else if (includesAny(category, KARAOKE_KEYWORDS)) pushRole("karaoke");
+    else if (includesAny(category, ACTIVITY_KEYWORDS)) pushRole("activity");
+    else if (includesAny(category, CAMPING_KEYWORDS)) pushRole("camping");
+    else if (includesAny(category, AMUSEMENT_KEYWORDS)) pushRole("amusement");
+    else if (includesAny(category, ["카페", "커피"])) pushRole("cafe");
     else if (includesAny(category, ["전시", "문화", "공연"])) pushRole("culture");
     else if (includesAny(category, ["실내"])) pushRole("cafe", "culture");
     else if (includesAny(category, ["산책", "공원", "자연"])) pushRole("walk");
     else if (includesAny(category, ["식사", "음식", "맛집"])) pushRole("food");
     else pushRole("attraction");
+  }
+
+  if (
+    mood.some((item) => item.includes("\ud65c\uae30")) &&
+    AMUSEMENT_REGION_HINTS.some((hint) => region.includes(hint)) &&
+    durationHours >= 4 &&
+    (budget === undefined || budget === 200001 || budget >= 30000)
+  ) {
+    pushRole("amusement");
   }
 
   const defaults: CourseRole[] = [
@@ -163,7 +367,6 @@ const resolveRoles = (state: SeoulMateGraphState): CourseRole[] => {
     roles.push(role);
   }
 
-  const durationHours = state.parsedRequest?.durationHours ?? 3;
   const count = resolvePlaceCountRange(durationHours).max;
 
   return roles.slice(0, count);

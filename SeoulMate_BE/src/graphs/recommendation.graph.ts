@@ -71,6 +71,20 @@ const graphWithoutAiExplanation = new StateGraph(RecommendationStateAnnotation)
   .addEdge("formatRecommendationResult", END)
   .compile();
 
+const apiBaseGraph = new StateGraph(RecommendationStateAnnotation)
+  .addNode("parseUserRequest", parseUserRequestNode)
+  .addNode("fetchCandidatePlaces", fetchCandidatePlacesNode)
+  .addNode("verifyCandidatePlaces", verifyCandidatePlacesNode)
+  .addNode("fetchContextData", fetchContextDataNode)
+  .addNode("scorePlaces", scorePlacesNode)
+  .addEdge(START, "parseUserRequest")
+  .addEdge("parseUserRequest", "fetchCandidatePlaces")
+  .addEdge("fetchCandidatePlaces", "verifyCandidatePlaces")
+  .addEdge("verifyCandidatePlaces", "fetchContextData")
+  .addEdge("fetchContextData", "scorePlaces")
+  .addEdge("scorePlaces", END)
+  .compile();
+
 export const runRecommendationGraph = async (
   input: string,
   parsedRequest?: ParsedRecommendationRequest
@@ -87,6 +101,17 @@ export const runRecommendationGraphWithoutAiExplanation = async (
   parsedRequest?: ParsedRecommendationRequest
 ): Promise<SeoulMateGraphState> =>
   graphWithoutAiExplanation.invoke({
+    rawInput: input,
+    parsedRequest,
+    warnings: [],
+    errors: []
+  });
+
+export const runRecommendationGraphForApi = async (
+  input: string,
+  parsedRequest?: ParsedRecommendationRequest
+): Promise<SeoulMateGraphState> =>
+  apiBaseGraph.invoke({
     rawInput: input,
     parsedRequest,
     warnings: [],
