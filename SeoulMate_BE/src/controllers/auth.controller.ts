@@ -17,14 +17,18 @@ import { validateSignupRequest } from "../validators/user.validator";
 
 const REFRESH_TOKEN_COOKIE_NAME = "seoulmate-refresh-token";
 
-const getRefreshTokenCookieOptions = (maxAge: number): CookieOptions => ({
-  httpOnly: true,
-  secure: process.env.COOKIE_SECURE === "true",
-  sameSite: "strict",
-  domain: ".seoulmate.my",
-  path: "/api/auth",
-  maxAge
-});
+const getRefreshTokenCookieOptions = (maxAge: number): CookieOptions => {
+  const secure = process.env.COOKIE_SECURE === "true";
+
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: "strict",
+    ...(secure ? { domain: ".seoulmate.my" } : {}),
+    path: "/api/auth",
+    maxAge
+  };
+};
 
 const setRefreshTokenCookie = (res: Response, refreshToken: string, maxAge = 604800000): void => {
   res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, getRefreshTokenCookieOptions(maxAge));
