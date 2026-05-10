@@ -282,6 +282,20 @@ export const parseUserRequestNode = async (
   const preset = state.parsedRequest;
   const hasPresetDateTime = Boolean(preset?.dateTime);
 
+  if (
+    preset?.region &&
+    typeof preset.budget === "number" &&
+    typeof preset.durationHours === "number" &&
+    preset.mood?.length
+  ) {
+    return {
+      parsedRequest: {
+        ...fallback,
+        ...preset
+      }
+    };
+  }
+
   try {
     const parsed = await openaiClient.createJsonResponse<ParsedRequestFromAi>({
       schemaName: "seoulmate_recommendation_request",
