@@ -922,10 +922,13 @@ const buildVariantTitle = (
 
 const buildCourseVariant = async (
   state: SeoulMateGraphState,
-  variant: RecommendationVariant
+  variant: RecommendationVariant,
+  excludedPlaceIds: Set<number> = new Set()
 ): Promise<RecommendationCourse | null> => {
   const { type, mood } = variant;
-  const candidates = state.candidatePlaces ?? [];
+  const allCandidates = state.candidatePlaces ?? [];
+  const freshCandidates = allCandidates.filter((place) => !excludedPlaceIds.has(place.id));
+  const candidates = freshCandidates.length >= 4 ? freshCandidates : allCandidates;
   if (!candidates.length) {
     return null;
   }
@@ -1265,22 +1268,25 @@ export const recommendationService = {
     const recommendationVariants = buildRecommendationVariants(state.parsedRequest?.mood);
     const builtVariants: BuiltCourseVariant[] = [];
     const seenSignatures = new Set<string>();
+    const globallyUsedPlaceIds = new Set<number>();
 
     for (const variant of recommendationVariants) {
-      const course = await buildCourseVariant(state, variant);
+      const course = await buildCourseVariant(state, variant, globallyUsedPlaceIds);
       if (!course?.places.length) {
         continue;
       }
 
-      const signature =
-        `${variant.type}:` +
-        course.places
-          .map((place) => place.placeId)
-          .sort((left, right) => left - right)
-          .join("|");
+      const placeIds = course.places.map((place) => place.placeId);
+      const duplicateCount = placeIds.filter((placeId) => globallyUsedPlaceIds.has(placeId)).length;
+      if (builtVariants.length && duplicateCount / Math.max(placeIds.length, 1) >= 0.5) {
+        continue;
+      }
+
+      const signature = placeIds.sort((left, right) => left - right).join("|");
 
       if (signature && !seenSignatures.has(signature)) {
         seenSignatures.add(signature);
+        placeIds.forEach((placeId) => globallyUsedPlaceIds.add(placeId));
         builtVariants.push({ type: variant.type, course });
       }
     }
