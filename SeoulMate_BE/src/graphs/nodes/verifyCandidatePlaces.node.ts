@@ -5,7 +5,7 @@ import type {
   SeoulMateGraphUpdate
 } from "../recommendation.state";
 
-const MAX_VERIFICATION_REQUESTS = 12;
+const MAX_VERIFICATION_REQUESTS = 4;
 const MIN_VERIFIED_CANDIDATES = 8;
 const CONCURRENCY = 4;
 

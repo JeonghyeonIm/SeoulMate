@@ -430,7 +430,7 @@ Authorization: Bearer <access_token>
   - `courses`: 추천 코스 배열. 기본 3개를 반환하고, 후보가 충분하면 최대 4개까지 반환합니다
   - `recommendedCourseId`: 서버가 가장 추천하는 코스 ID. 같은 코스는 `courses[].isRecommended: true`로도 표시됩니다
   - `courses[].recommendationRank`: 추천 순위. 1번이 가장 추천하는 코스입니다
-  - `courses[].recommendationType`: 추천 성격. `best`, `balanced`, `indoor`, `low-budget`, `short-walk`
+  - `courses[].recommendationType`: 추천 성격. 분위기 선택 시 `mood-quiet`, `mood-hip`, `mood-poetic`, `mood-romantic`, `mood-lively`, `mood-calm`, `mood-modern`, `mood-emotional`, `mood-nature` 중 하나가 반환됩니다. 분위기 선택이 없으면 `best`, `balanced`, `indoor`, `low-budget` 조합을 반환합니다
   - `courses[].congestion`: 행정동 단위 서울 생활인구 통계 기반 혼잡도. 산출 불가 시 `unknown`
   - `courses[].weather`: 모든 날씨 source에서 `{ source, skyStatus, temperature, rainProbability, weatherAlert }` 형식으로 반환합니다
   - `warnings` (optional): 외부 API 장애 등으로 일부 정보가 누락된 경우에만 포함되는 경고 메시지 배열
