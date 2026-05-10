@@ -58,6 +58,10 @@ export interface RecommendationContextData {
     areaName: string;
     crowdLevel?: string;
     weatherStatus?: string;
+    skyStatus?: string;
+    temperature?: number;
+    rainProbability?: number;
+    weatherAlert?: string;
     trafficStatus?: string;
   };
   weather?: {

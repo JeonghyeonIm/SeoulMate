@@ -27,6 +27,12 @@ const placeText = (place: CandidatePlace): string =>
     .join(" ")
     .toLowerCase();
 
+const normalizePlaceTitle = (title: string): string =>
+  title
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[^가-힣a-z0-9]/g, "");
+
 const estimateCost = (place: CandidatePlace): number => {
   if (typeof place.estimatedCost === "number") {
     return place.estimatedCost;
@@ -75,6 +81,11 @@ const roleMatches = (role: CourseRole, place: CandidatePlace): boolean => {
   return includesAny(text, ["관광", "명소", "야경", "attraction"]);
 };
 
+const inferCourseRole = (place: CandidatePlace): CourseRole => {
+  const roles: CourseRole[] = ["cafe", "culture", "walk", "food", "attraction"];
+  return roles.find((role) => roleMatches(role, place)) ?? "attraction";
+};
+
 const hasCoordinate = (place: CandidatePlace): boolean =>
   typeof place.latitude === "number" && typeof place.longitude === "number";
 
@@ -101,21 +112,26 @@ const roleLabel = (role: CourseRole, fallback: string): string =>
 const resolveRoles = (state: SeoulMateGraphState): CourseRole[] => {
   const categories = state.parsedRequest?.preferredCategories ?? [];
   const roles: CourseRole[] = [];
+  const pushRole = (...nextRoles: CourseRole[]): void => {
+    for (const nextRole of nextRoles) {
+      if (!roles.includes(nextRole)) {
+        roles.push(nextRole);
+      }
+    }
+  };
 
   for (const category of categories) {
-    if (includesAny(category, ["카페", "커피"])) roles.push("cafe");
-    else if (includesAny(category, ["전시", "문화", "공연"])) roles.push("culture");
-    else if (includesAny(category, ["실내"])) roles.push("cafe", "culture");
-    else if (includesAny(category, ["산책", "공원", "자연"])) roles.push("walk");
-    else if (includesAny(category, ["식사", "음식", "맛집"])) roles.push("food");
-    else roles.push("attraction");
+    if (includesAny(category, ["카페", "커피"])) pushRole("cafe");
+    else if (includesAny(category, ["전시", "문화", "공연"])) pushRole("culture");
+    else if (includesAny(category, ["실내"])) pushRole("cafe", "culture");
+    else if (includesAny(category, ["산책", "공원", "자연"])) pushRole("walk");
+    else if (includesAny(category, ["식사", "음식", "맛집"])) pushRole("food");
+    else pushRole("attraction");
   }
 
   const defaults: CourseRole[] = ["cafe", "culture", "walk", "food"];
   for (const role of defaults) {
-    if (!roles.includes(role)) {
-      roles.push(role);
-    }
+    pushRole(role);
   }
 
   const durationHours = state.parsedRequest?.durationHours ?? 3;
@@ -137,12 +153,28 @@ const selectPlace = (
   role: CourseRole,
   sortedPlaces: CandidatePlace[],
   usedPlaceIds: Set<number>,
+  usedPlaceTitles: Set<string>,
+  usedRoles: Set<CourseRole>,
   remainingBudget?: number,
   previousPlace?: CandidatePlace
 ): CandidatePlace | undefined => {
-  const available = sortedPlaces.filter((place) => !usedPlaceIds.has(place.id));
+  const available = sortedPlaces.filter(
+    (place) => !usedPlaceIds.has(place.id) && !usedPlaceTitles.has(normalizePlaceTitle(place.title))
+  );
+  const diverseAvailable = available.filter((place) => !usedRoles.has(inferCourseRole(place)));
   const roleMatchesPlaces = available.filter((place) => roleMatches(role, place));
-  const rawPool = roleMatchesPlaces.length ? roleMatchesPlaces : available;
+  const diverseRoleMatches = roleMatchesPlaces.filter(
+    (place) => !usedRoles.has(inferCourseRole(place))
+  );
+  const rawPool = diverseRoleMatches.length
+    ? diverseRoleMatches
+    : usedRoles.has(role) && diverseAvailable.length
+      ? diverseAvailable
+      : roleMatchesPlaces.length
+        ? roleMatchesPlaces
+        : diverseAvailable.length
+          ? diverseAvailable
+          : available;
   const pool =
     previousPlace && hasCoordinate(previousPlace)
       ? [...rawPool].sort((a, b) => {
@@ -178,7 +210,8 @@ const selectPlace = (
     ) ??
     pool.find(
       (place) =>
-        hasCoordinate(place) && (remainingBudget === undefined || estimateCost(place) <= remainingBudget)
+        hasCoordinate(place) &&
+        (remainingBudget === undefined || estimateCost(place) <= remainingBudget)
     ) ??
     pool.find(isMapVerified) ??
     pool.find(hasCoordinate) ??
@@ -217,6 +250,8 @@ export const buildCourseNode = async (
   const scoreById = new Map(scoredPlaces.map((score) => [score.placeId, score.totalScore]));
   const selected: Array<{ role: CourseRole; place: CandidatePlace }> = [];
   const usedPlaceIds = new Set<number>();
+  const usedPlaceTitles = new Set<string>();
+  const usedRoles = new Set<CourseRole>();
   let remainingBudget = state.parsedRequest?.budget;
 
   for (const role of resolveRoles(state)) {
@@ -224,6 +259,8 @@ export const buildCourseNode = async (
       role,
       sortedPlaces,
       usedPlaceIds,
+      usedPlaceTitles,
+      usedRoles,
       remainingBudget,
       selected[selected.length - 1]?.place
     );
@@ -233,6 +270,8 @@ export const buildCourseNode = async (
 
     selected.push({ role, place });
     usedPlaceIds.add(place.id);
+    usedPlaceTitles.add(normalizePlaceTitle(place.title));
+    usedRoles.add(inferCourseRole(place));
 
     if (remainingBudget !== undefined) {
       remainingBudget -= estimateCost(place);
@@ -257,9 +296,7 @@ export const buildCourseNode = async (
   }));
 
   const routePoints = coursePlaces
-    .filter(
-      (place) => typeof place.latitude === "number" && typeof place.longitude === "number"
-    )
+    .filter((place) => typeof place.latitude === "number" && typeof place.longitude === "number")
     .map((place) => ({
       latitude: place.latitude as number,
       longitude: place.longitude as number
