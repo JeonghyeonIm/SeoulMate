@@ -215,3 +215,20 @@ app.use(
 - 운영 HTTPS 환경에서는 `COOKIE_SECURE=true`가 필요합니다.
 - 로컬 HTTP 환경에서는 `COOKIE_SECURE=false`가 필요할 수 있습니다.
 - TODO: `COOKIE_SECURE`를 `src/config/env.ts`에서 정식으로 파싱해 공통 설정으로 관리할지 결정 필요
+
+## 포스트맨 검증 결과
+
+검증 환경:
+
+- 로컬 서버 (`http://localhost:3000`)
+- `COOKIE_SECURE=false`
+
+검증 순서 및 결과:
+
+1. `POST /api/auth/signup` — `201`, `seoulmate-refresh-token` 쿠키 저장 확인
+2. `POST /api/auth/login` — `200`, body에 `refreshToken` 없음, `Set-Cookie` 확인
+3. `POST /api/auth/refresh` — `200`, 쿠키 자동전송, 새 `accessToken` 발급, 쿠키 재발급 확인
+4. `POST /api/auth/logout` — `204`, `Max-Age=0` 쿠키 삭제 확인
+5. 로그아웃 후 `POST /api/auth/refresh` — `401` 확인
+
+전체 검증 통과.
