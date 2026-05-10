@@ -281,20 +281,20 @@ const classifyLivingPopulationCongestion = (avgPopulation: number | null): Conge
 const chooseWeatherSource = (dateTime?: string): WeatherSource => {
   if (!dateTime) {
     logger.info({ dateTime, diffHours: null }, "[fetchContextData] weather source 분기 계산");
-    return "cityData";
+    return "ultraShortTerm";
   }
 
   const target = new Date(dateTime);
   if (Number.isNaN(target.getTime())) {
     logger.info({ dateTime, diffHours: null }, "[fetchContextData] weather source 분기 계산");
-    return "cityData";
+    return "ultraShortTerm";
   }
 
   const diffHours = (target.getTime() - Date.now()) / (60 * 60 * 1000);
   logger.info({ dateTime, diffHours }, "[fetchContextData] weather source 분기 계산");
 
   if (diffHours <= 0.5) {
-    return "cityData";
+    return "ultraShortTerm";
   }
 
   if (diffHours <= 6) {
