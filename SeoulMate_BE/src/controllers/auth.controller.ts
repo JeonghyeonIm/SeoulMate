@@ -1,4 +1,5 @@
 import { type CookieOptions, type NextFunction, type Request, type Response } from "express";
+import type { ParamsDictionary } from "express-serve-static-core";
 
 import { env } from "../config/env";
 import {
@@ -84,7 +85,7 @@ export async function loginController(
 // ── 토큰 갱신 ─────────────────────────────────────────────────────────────────
 
 export async function refreshController(
-  req: Request<unknown, AuthResponseBody, RefreshRequestBody>,
+  req: Request<ParamsDictionary, AuthResponseBody, RefreshRequestBody>,
   res: Response<AuthResponseBody>,
   next: NextFunction
 ): Promise<void> {
