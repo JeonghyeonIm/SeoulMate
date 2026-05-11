@@ -30,8 +30,6 @@ export interface SeoulCityDataPayload {
 }
 
 const SEOUL_OPEN_API_BASE_URL = "http://openapi.seoul.go.kr:8088";
-const FOOD_HYGIENE_LIST_URL =
-  "https://data.seoul.go.kr/dataList/datasetView.do?currentPageNo=&infId=OA-13663&searchKey=&searchValue=&serviceKind=1&srvType=F";
 const LIVING_POPULATION_LIST_URL =
   "https://data.seoul.go.kr/dataList/datasetView.do?currentPageNo=&infId=OA-14991&searchKey=&searchValue=&serviceKind=1&srvType=F";
 const SEOUL_DATA_FILE_DOWNLOAD_URL =
@@ -231,44 +229,6 @@ export const seoulOpenDataClient = {
     }
 
     throw new Error(`citydata: ${payload.RESULT?.MESSAGE ?? "Unknown response"}`);
-  },
-
-  async fetchLatestFoodHygieneRows(): Promise<{
-    fileName: string;
-    rows: Record<string, string>[];
-  }> {
-    const pageHtml = await fetchText(FOOD_HYGIENE_LIST_URL);
-    const matched = /downloadFile\('(\d+)'\);">([^<]+?\.csv)</.exec(pageHtml);
-
-    if (!matched) {
-      throw new Error("Could not locate the latest food hygiene CSV download");
-    }
-
-    const [, seq, fileName] = matched;
-    const formData = new URLSearchParams({
-      infId: "OA-13663",
-      seq,
-      infSeq: "3"
-    });
-
-    const csvResponse = await fetchWithTimeout(SEOUL_DATA_FILE_DOWNLOAD_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: formData.toString()
-    });
-
-    if (!csvResponse.ok) {
-      throw new Error(`CSV download failed (${csvResponse.status})`);
-    }
-
-    const csvContent = new TextDecoder("euc-kr").decode(await csvResponse.arrayBuffer());
-
-    return {
-      fileName,
-      rows: parseCsv(csvContent)
-    };
   },
 
   async fetchLivingPopulationFileList(): Promise<LivingPopulationFileInfo[]> {

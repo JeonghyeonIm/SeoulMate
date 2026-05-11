@@ -16,7 +16,6 @@ const DEFAULT_SOURCE_DATASETS = [
   "SearchParkInfoService",
   "LOCALDATA_072404",
   "LOCALDATA_072405",
-  "OA-13663",
   "viewNightSpot"
 ];
 
@@ -202,11 +201,11 @@ const CATEGORY_SOURCE_DATASETS: Array<{
 }> = [
   {
     keywords: ["카페", "커피", "디저트"],
-    sourceDatasets: ["TbVwRestaurants", "LOCALDATA_072404", "LOCALDATA_072405", "OA-13663"]
+    sourceDatasets: ["TbVwRestaurants", "LOCALDATA_072404", "LOCALDATA_072405"]
   },
   {
     keywords: ["음식", "식사", "맛집", "식당", "레스토랑"],
-    sourceDatasets: ["TbVwRestaurants", "LOCALDATA_072404", "LOCALDATA_072405", "OA-13663"]
+    sourceDatasets: ["TbVwRestaurants", "LOCALDATA_072404", "LOCALDATA_072405"]
   },
   {
     keywords: ["문화", "전시", "공연", "공간", "박물관"],
