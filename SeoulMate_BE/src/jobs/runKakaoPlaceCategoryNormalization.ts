@@ -1,4 +1,4 @@
-import { mapClient, type KakaoLocalPlace } from "../clients/map.client";
+import { KakaoQuotaExceededError, mapClient, type KakaoLocalPlace } from "../clients/map.client";
 import { db } from "../config/db";
 import { isValidSeoulCoordinate } from "../utils/coordinates";
 import logger from "../utils/logger";
@@ -243,9 +243,28 @@ const processBatch = async (rows: TargetRow[]): Promise<{ matched: number; skipp
     kakaoMatchConfidence: number | null;
   }> = [];
   const skippedIds: number[] = [];
+  let quotaExceeded = false;
 
   for (const row of rows) {
-    const best = await findBestMatch(row);
+    let best: Awaited<ReturnType<typeof findBestMatch>>;
+    try {
+      best = await findBestMatch(row);
+    } catch (error) {
+      if (error instanceof KakaoQuotaExceededError) {
+        quotaExceeded = true;
+        logger.warn(
+          {
+            rowId: row.id,
+            title: row.title
+          },
+          "Kakao Local API quota exceeded during normalization batch"
+        );
+        break;
+      }
+
+      throw error;
+    }
+
     if (!best) {
       skipped += 1;
       skippedIds.push(row.id);
@@ -323,9 +342,14 @@ const processBatch = async (rows: TargetRow[]): Promise<{ matched: number; skipp
 
   matched = updates.length;
   logger.info(
-    { matched, skipped, targetCount: rows.length },
+    { matched, skipped, targetCount: rows.length, quotaExceeded },
     "Kakao place category normalization completed"
   );
+
+  if (quotaExceeded) {
+    throw new KakaoQuotaExceededError();
+  }
+
   return { matched, skipped };
 };
 
@@ -345,9 +369,21 @@ const run = async (): Promise<void> => {
     }
 
     batch += 1;
-    const result = await processBatch(rows);
-    totalMatched += result.matched;
-    totalSkipped += result.skipped;
+    try {
+      const result = await processBatch(rows);
+      totalMatched += result.matched;
+      totalSkipped += result.skipped;
+    } catch (error) {
+      if (error instanceof KakaoQuotaExceededError) {
+        logger.warn(
+          { batch, totalMatched, totalSkipped },
+          "Stopped Kakao category normalization because Kakao Local API quota was exceeded"
+        );
+        break;
+      }
+
+      throw error;
+    }
 
     logger.info(
       { batch, totalMatched, totalSkipped },

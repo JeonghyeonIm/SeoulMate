@@ -38,6 +38,13 @@ export interface KakaoLocalPlace {
   distanceMeter?: number;
 }
 
+export class KakaoQuotaExceededError extends Error {
+  constructor(message = "Kakao Local API quota exceeded") {
+    super(message);
+    this.name = "KakaoQuotaExceededError";
+  }
+}
+
 interface KakaoWalkingRoute {
   result_code?: number;
   result_message?: string;
@@ -289,6 +296,10 @@ export const mapClient = {
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        throw new KakaoQuotaExceededError();
+      }
+
       if (response.status === 401 || response.status === 403) {
         kakaoLocalSearchDisabled = true;
       }
@@ -321,6 +332,10 @@ export const mapClient = {
     });
 
     if (!response.ok) {
+      if (response.status === 429) {
+        throw new KakaoQuotaExceededError();
+      }
+
       return null;
     }
 
