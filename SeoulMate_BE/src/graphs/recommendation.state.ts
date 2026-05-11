@@ -14,6 +14,9 @@ export interface CandidatePlace {
   id: number;
   title: string;
   category: string;
+  placeFamily?: string;
+  placeType?: string;
+  placeSubtype?: string;
   region?: string;
   address?: string;
   latitude?: number;
@@ -23,6 +26,7 @@ export interface CandidatePlace {
   sourceDataset?: string;
   source?: string;
   sourceUrl?: string;
+  mapUrl?: string;
   metadata?: Record<string, unknown>;
   mapVerification?: {
     provider: "kakaoLocal";

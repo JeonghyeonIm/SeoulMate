@@ -517,6 +517,9 @@ const mapCandidate = (item: PublicDataset): CandidatePlace => ({
   id: item.id,
   title: item.title,
   category: item.category,
+  placeFamily: item.placeFamily ?? undefined,
+  placeType: item.placeType ?? undefined,
+  placeSubtype: item.placeSubtype ?? undefined,
   region: item.region ?? undefined,
   address: item.address ?? undefined,
   latitude: item.latitude ?? undefined,
@@ -526,6 +529,7 @@ const mapCandidate = (item: PublicDataset): CandidatePlace => ({
   sourceDataset: item.sourceDataset ?? undefined,
   source: item.source ?? undefined,
   sourceUrl: item.sourceUrl ?? undefined,
+  mapUrl: item.kakaoPlaceUrl ?? item.sourceUrl ?? undefined,
   metadata: item.metadata
 });
 

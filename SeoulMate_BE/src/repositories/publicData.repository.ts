@@ -4,6 +4,7 @@ import type {
   PublicDatasetSearchParams,
   UpsertPublicDatasetInput
 } from "../models/publicDataset.model";
+import { classifyPublicDataCategory } from "../utils/publicDataCategory";
 
 export interface PublicDataSyncRun {
   id: number;
@@ -32,6 +33,10 @@ const mapPublicDataset = (row: Record<string, unknown>): PublicDataset => ({
   sourceRecordId: (row.source_record_id as string | null) ?? null,
   title: String(row.title),
   category: String(row.category),
+  placeFamily: (row.place_family as string | null) ?? null,
+  placeType: (row.place_type as string | null) ?? null,
+  placeSubtype: (row.place_subtype as string | null) ?? null,
+  categoryConfidence: row.category_confidence === null ? null : Number(row.category_confidence),
   region: (row.region as string | null) ?? null,
   address: (row.address as string | null) ?? null,
   latitude: row.latitude === null ? null : Number(row.latitude),
@@ -39,6 +44,13 @@ const mapPublicDataset = (row: Record<string, unknown>): PublicDataset => ({
   source: (row.source as string | null) ?? null,
   sourceUrl: (row.source_url as string | null) ?? null,
   metadata: (row.metadata as Record<string, unknown> | null) ?? {},
+  kakaoPlaceName: (row.kakao_place_name as string | null) ?? null,
+  kakaoPlaceUrl: (row.kakao_place_url as string | null) ?? null,
+  kakaoCategoryName: (row.kakao_category_name as string | null) ?? null,
+  kakaoCategoryGroupName: (row.kakao_category_group_name as string | null) ?? null,
+  kakaoMatchConfidence:
+    row.kakao_match_confidence === null ? null : Number(row.kakao_match_confidence),
+  kakaoMatchedAt: (row.kakao_matched_at as string | null) ?? null,
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at)
 });
@@ -71,7 +83,7 @@ export const publicDataRepository = {
       values.push(`%${params.keyword}%`);
       const placeholder = `$${values.length}`;
       clauses.push(
-        `(title ILIKE ${placeholder} OR category ILIKE ${placeholder} OR address ILIKE ${placeholder})`
+        `(title ILIKE ${placeholder} OR category ILIKE ${placeholder} OR place_family ILIKE ${placeholder} OR place_type ILIKE ${placeholder} OR place_subtype ILIKE ${placeholder} OR address ILIKE ${placeholder})`
       );
     }
 
@@ -96,7 +108,7 @@ export const publicDataRepository = {
       values.push(aliases.map((alias) => `%${alias}%`));
       const placeholder = `$${values.length}`;
       clauses.push(
-        `(category ILIKE ANY(${placeholder}) OR title ILIKE ANY(${placeholder}) OR address ILIKE ANY(${placeholder}) OR metadata::text ILIKE ANY(${placeholder}))`
+        `(category ILIKE ANY(${placeholder}) OR place_family ILIKE ANY(${placeholder}) OR place_type ILIKE ANY(${placeholder}) OR place_subtype ILIKE ANY(${placeholder}) OR title ILIKE ANY(${placeholder}) OR address ILIKE ANY(${placeholder}) OR metadata::text ILIKE ANY(${placeholder}))`
       );
     }
 
@@ -147,8 +159,9 @@ export const publicDataRepository = {
     const values: Array<string | number | string[]> = [];
     const orderCases: string[] = [];
 
-    const normalizeList = (items?: string[]): string[] =>
-      [...new Set((items ?? []).map((item) => item.trim()).filter(Boolean))];
+    const normalizeList = (items?: string[]): string[] => [
+      ...new Set((items ?? []).map((item) => item.trim()).filter(Boolean))
+    ];
 
     const toLikePatterns = (items: string[]): string[] => items.map((item) => `%${item}%`);
 
@@ -211,7 +224,7 @@ export const publicDataRepository = {
       values.push(normalizedKeywords.map((keyword) => `%${keyword}%`));
       const placeholder = `$${values.length}`;
       clauses.push(
-        `(title ILIKE ANY(${placeholder}) OR category ILIKE ANY(${placeholder}) OR address ILIKE ANY(${placeholder}) OR metadata::text ILIKE ANY(${placeholder}))`
+        `(title ILIKE ANY(${placeholder}) OR category ILIKE ANY(${placeholder}) OR place_family ILIKE ANY(${placeholder}) OR place_type ILIKE ANY(${placeholder}) OR place_subtype ILIKE ANY(${placeholder}) OR address ILIKE ANY(${placeholder}) OR metadata::text ILIKE ANY(${placeholder}))`
       );
     }
 
@@ -239,7 +252,14 @@ export const publicDataRepository = {
   async replaceDataset(sourceDataset: string, items: UpsertPublicDatasetInput[]): Promise<void> {
     const seen = new Map<string, UpsertPublicDatasetInput>();
     for (const item of items) {
-      seen.set(`${item.sourceDataset ?? ""}\0${item.sourceRecordId ?? ""}`, item);
+      const normalizedCategory = classifyPublicDataCategory(item);
+      seen.set(`${item.sourceDataset ?? ""}\0${item.sourceRecordId ?? ""}`, {
+        ...item,
+        placeFamily: item.placeFamily ?? normalizedCategory.placeFamily,
+        placeType: item.placeType ?? normalizedCategory.placeType,
+        placeSubtype: item.placeSubtype ?? normalizedCategory.placeSubtype,
+        categoryConfidence: item.categoryConfidence ?? normalizedCategory.categoryConfidence
+      });
     }
     const deduped = [...seen.values()];
 
@@ -254,12 +274,16 @@ export const publicDataRepository = {
         const values: Array<number | string | null> = [];
 
         const placeholders = chunk.map((item, rowIndex) => {
-          const offset = rowIndex * 11;
+          const offset = rowIndex * 15;
           values.push(
             item.sourceDataset ?? null,
             item.sourceRecordId ?? null,
             item.title,
             item.category,
+            item.placeFamily ?? null,
+            item.placeType ?? null,
+            item.placeSubtype ?? null,
+            item.categoryConfidence ?? null,
             item.region ?? null,
             item.address ?? null,
             item.latitude ?? null,
@@ -268,13 +292,14 @@ export const publicDataRepository = {
             item.sourceUrl ?? null,
             JSON.stringify(item.metadata ?? {})
           );
-          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}::jsonb)`;
+          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15}::jsonb)`;
         });
 
         await client.query(
           `INSERT INTO public_data (
-            source_dataset, source_record_id, title, category, region, address,
-            latitude, longitude, source, source_url, metadata
+            source_dataset, source_record_id, title, category, place_family, place_type,
+            place_subtype, category_confidence, region, address, latitude, longitude,
+            source, source_url, metadata
           ) VALUES ${placeholders.join(", ")}`,
           values
         );
@@ -300,18 +325,29 @@ export const publicDataRepository = {
       const rawChunk = items.slice(index, index + chunkSize);
       const seen = new Map<string, UpsertPublicDatasetInput>();
       for (const item of rawChunk) {
-        seen.set(`${item.sourceDataset ?? ""}\0${item.sourceRecordId ?? ""}`, item);
+        const normalizedCategory = classifyPublicDataCategory(item);
+        seen.set(`${item.sourceDataset ?? ""}\0${item.sourceRecordId ?? ""}`, {
+          ...item,
+          placeFamily: item.placeFamily ?? normalizedCategory.placeFamily,
+          placeType: item.placeType ?? normalizedCategory.placeType,
+          placeSubtype: item.placeSubtype ?? normalizedCategory.placeSubtype,
+          categoryConfidence: item.categoryConfidence ?? normalizedCategory.categoryConfidence
+        });
       }
       const chunk = [...seen.values()];
       const values: Array<number | string | null> = [];
 
       const placeholders = chunk.map((item, rowIndex) => {
-        const offset = rowIndex * 11;
+        const offset = rowIndex * 15;
         values.push(
           item.sourceDataset ?? null,
           item.sourceRecordId ?? null,
           item.title,
           item.category,
+          item.placeFamily ?? null,
+          item.placeType ?? null,
+          item.placeSubtype ?? null,
+          item.categoryConfidence ?? null,
           item.region ?? null,
           item.address ?? null,
           item.latitude ?? null,
@@ -321,7 +357,7 @@ export const publicDataRepository = {
           JSON.stringify(item.metadata ?? {})
         );
 
-        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}::jsonb)`;
+        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15}::jsonb)`;
       });
 
       await db.query(
@@ -331,6 +367,10 @@ export const publicDataRepository = {
             source_record_id,
             title,
             category,
+            place_family,
+            place_type,
+            place_subtype,
+            category_confidence,
             region,
             address,
             latitude,
@@ -345,6 +385,10 @@ export const publicDataRepository = {
             source = EXCLUDED.source,
             title = EXCLUDED.title,
             category = EXCLUDED.category,
+            place_family = EXCLUDED.place_family,
+            place_type = EXCLUDED.place_type,
+            place_subtype = EXCLUDED.place_subtype,
+            category_confidence = EXCLUDED.category_confidence,
             region = EXCLUDED.region,
             address = EXCLUDED.address,
             latitude = EXCLUDED.latitude,

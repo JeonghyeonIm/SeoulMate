@@ -60,6 +60,7 @@ export interface CoursePlaceResponse {
   name: string;
   lat: number | null;
   lng: number | null;
+  mapUrl?: string | null;
   order: number;
   stayDuration?: number;
   priceMin?: number;
@@ -381,6 +382,24 @@ const getCandidate = (
   candidates: CandidatePlace[] | undefined,
   placeId: number
 ): CandidatePlace | undefined => candidates?.find((candidate) => candidate.id === placeId);
+
+const resolvePlaceMapUrl = (
+  place:
+    | Pick<PublicDataset, "kakaoPlaceUrl" | "sourceUrl">
+    | Pick<CandidatePlace, "mapVerification" | "mapUrl" | "sourceUrl">
+    | null
+    | undefined
+): string | null => {
+  if (!place) {
+    return null;
+  }
+
+  if ("kakaoPlaceUrl" in place) {
+    return place.kakaoPlaceUrl ?? place.sourceUrl ?? null;
+  }
+
+  return place.mapVerification?.placeUrl ?? place.mapUrl ?? place.sourceUrl ?? null;
+};
 
 const assertOwnRequest = (
   request: RecommendationRequest | null,
@@ -1342,6 +1361,7 @@ const saveBuiltCourseVariant = async (
 
 const toCourseResponseFromVariant = (
   variant: BuiltCourseVariant,
+  candidates: CandidatePlace[] | undefined,
   context?: RecommendationContextData,
   meta?: {
     recommendationRank?: number;
@@ -1363,6 +1383,7 @@ const toCourseResponseFromVariant = (
     name: place.title,
     lat: place.latitude ?? null,
     lng: place.longitude ?? null,
+    mapUrl: resolvePlaceMapUrl(getCandidate(candidates, place.placeId)),
     order: place.order
   }))
 });
@@ -1413,6 +1434,7 @@ const toCourseResponseFromDetail = (detail: CourseDetail): CourseResponse => {
         name: item.place?.title ?? `장소 ${item.publicDataId}`,
         lat: item.place?.latitude ?? null,
         lng: item.place?.longitude ?? null,
+        mapUrl: resolvePlaceMapUrl(item.place),
         order: item.courseOrder ?? index + 1,
         stayDuration: estimateStayDuration(item),
         priceMin: cost,
@@ -1533,7 +1555,9 @@ export const recommendationService = {
     );
     const warnings = uniqueStringArray(state.warnings ?? []);
     const courses = savedVariants
-      .map((variant) => toCourseResponseFromVariant(variant, state.contextData))
+      .map((variant) =>
+        toCourseResponseFromVariant(variant, state.candidatePlaces, state.contextData)
+      )
       .map((course, index) => ({
         ...course,
         recommendationRank: index + 1,
