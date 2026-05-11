@@ -223,7 +223,7 @@ const roleMatches = (role: CourseRole, place: CandidatePlace): boolean => {
   }
 
   if (role === "culture") {
-    return includesAny(text, ["문화", "전시", "공연", "박물관", "공간", "attraction"]);
+    return includesAny(text, ["문화", "전시", "공연", "박물관", "공간"]);
   }
 
   if (role === "walk") {
@@ -353,18 +353,9 @@ const resolveRoles = (state: SeoulMateGraphState): CourseRole[] => {
     pushRole("amusement");
   }
 
-  const defaults: CourseRole[] = [
-    "cafe",
-    "culture",
-    "walk",
-    "food",
-    "attraction",
-    "cafe",
-    "culture",
-    "food"
-  ];
+  const defaults: CourseRole[] = ["cafe", "culture", "walk", "food", "attraction"];
   for (const role of defaults) {
-    roles.push(role);
+    pushRole(role);
   }
 
   const count = resolvePlaceCountRange(durationHours).max;
@@ -418,17 +409,60 @@ const sortPlacesByScore = (
   return [...places].sort((a, b) => (scoreById.get(b.id) ?? 0) - (scoreById.get(a.id) ?? 0));
 };
 
+const calculateDistanceFromOrigin = (
+  origin: { latitude: number; longitude: number } | undefined,
+  place: CandidatePlace
+): number | undefined => {
+  if (!origin || !hasCoordinate(place)) {
+    return undefined;
+  }
+
+  return mapClient.calculateDistanceMeter(origin, {
+    latitude: place.latitude as number,
+    longitude: place.longitude as number
+  });
+};
+
+const movementPenalty = (distanceMeter?: number): number => {
+  if (distanceMeter === undefined) {
+    return 6;
+  }
+
+  if (distanceMeter <= 600) {
+    return 0;
+  }
+
+  if (distanceMeter <= 1200) {
+    return 3;
+  }
+
+  if (distanceMeter <= 2200) {
+    return 8;
+  }
+
+  if (distanceMeter <= 3500) {
+    return 14;
+  }
+
+  return 22;
+};
+
 const selectPlace = (
   role: CourseRole,
   sortedPlaces: CandidatePlace[],
+  scoreById: Map<number, number>,
   usedPlaceIds: Set<number>,
   usedPlaceTitles: Set<string>,
   usedRoles: Set<CourseRole>,
   remainingBudget?: number,
-  previousPlace?: CandidatePlace
+  previousPlace?: CandidatePlace,
+  referenceCoordinate?: { latitude: number; longitude: number }
 ): CandidatePlace | undefined => {
   const available = sortedPlaces.filter(
-    (place) => !usedPlaceIds.has(place.id) && !usedPlaceTitles.has(normalizePlaceTitle(place.title))
+    (place) =>
+      !usedPlaceIds.has(place.id) &&
+      !usedPlaceTitles.has(normalizePlaceTitle(place.title)) &&
+      (remainingBudget === undefined || estimateCost(place) <= remainingBudget)
   );
   const diverseAvailable = available.filter((place) => !usedRoles.has(inferCourseRole(place)));
   const roleMatchesPlaces = available.filter((place) => roleMatches(role, place));
@@ -442,49 +476,39 @@ const selectPlace = (
       : diverseAvailable.length
         ? diverseAvailable
         : available;
-  const pool =
+  const origin =
     previousPlace && hasCoordinate(previousPlace)
-      ? [...rawPool].sort((a, b) => {
-          const distanceA = hasCoordinate(a)
-            ? mapClient.calculateDistanceMeter(
-                {
-                  latitude: previousPlace.latitude as number,
-                  longitude: previousPlace.longitude as number
-                },
-                { latitude: a.latitude as number, longitude: a.longitude as number }
-              )
-            : Number.POSITIVE_INFINITY;
-          const distanceB = hasCoordinate(b)
-            ? mapClient.calculateDistanceMeter(
-                {
-                  latitude: previousPlace.latitude as number,
-                  longitude: previousPlace.longitude as number
-                },
-                { latitude: b.latitude as number, longitude: b.longitude as number }
-              )
-            : Number.POSITIVE_INFINITY;
+      ? {
+          latitude: previousPlace.latitude as number,
+          longitude: previousPlace.longitude as number
+        }
+      : referenceCoordinate;
+  const pool = [...rawPool].sort((a, b) => {
+    const distanceA = calculateDistanceFromOrigin(origin, a);
+    const distanceB = calculateDistanceFromOrigin(origin, b);
+    const effectiveScoreA = (scoreById.get(a.id) ?? 0) - movementPenalty(distanceA);
+    const effectiveScoreB = (scoreById.get(b.id) ?? 0) - movementPenalty(distanceB);
 
-          return distanceA - distanceB;
-        })
-      : rawPool;
+    if (effectiveScoreB !== effectiveScoreA) {
+      return effectiveScoreB - effectiveScoreA;
+    }
 
-  return (
-    pool.find(
-      (place) =>
-        isMapVerified(place) &&
-        hasCoordinate(place) &&
-        (remainingBudget === undefined || estimateCost(place) <= remainingBudget)
-    ) ??
-    pool.find(
-      (place) =>
-        hasCoordinate(place) &&
-        (remainingBudget === undefined || estimateCost(place) <= remainingBudget)
-    ) ??
-    pool.find(isMapVerified) ??
-    pool.find(hasCoordinate) ??
-    pool.find((place) => remainingBudget === undefined || estimateCost(place) <= remainingBudget) ??
-    pool[0]
-  );
+    if (isMapVerified(a) !== isMapVerified(b)) {
+      return Number(isMapVerified(b)) - Number(isMapVerified(a));
+    }
+
+    if (hasCoordinate(a) !== hasCoordinate(b)) {
+      return Number(hasCoordinate(b)) - Number(hasCoordinate(a));
+    }
+
+    if ((distanceA ?? Number.POSITIVE_INFINITY) !== (distanceB ?? Number.POSITIVE_INFINITY)) {
+      return (distanceA ?? Number.POSITIVE_INFINITY) - (distanceB ?? Number.POSITIVE_INFINITY);
+    }
+
+    return (scoreById.get(b.id) ?? 0) - (scoreById.get(a.id) ?? 0);
+  });
+
+  return pool[0];
 };
 
 const buildTitle = (state: SeoulMateGraphState): string => {
@@ -516,6 +540,12 @@ export const buildCourseNode = async (
   const sortedPlaces = sortPlacesByScore(candidatePlaces, scoredPlaces);
   const durationHours = state.parsedRequest?.durationHours ?? 3;
   const scoreById = new Map(scoredPlaces.map((score) => [score.placeId, score.totalScore]));
+  const referenceCoordinate = state.contextData?.referenceCoordinate
+    ? {
+        latitude: state.contextData.referenceCoordinate.latitude,
+        longitude: state.contextData.referenceCoordinate.longitude
+      }
+    : undefined;
   const selected: Array<{ role: CourseRole; place: CandidatePlace }> = [];
   const usedPlaceIds = new Set<number>();
   const usedPlaceTitles = new Set<string>();
@@ -528,11 +558,13 @@ export const buildCourseNode = async (
     const place = selectPlace(
       role,
       sortedPlaces,
+      scoreById,
       usedPlaceIds,
       usedPlaceTitles,
       usedRoles,
       remainingBudget,
-      selected[selected.length - 1]?.place
+      selected[selected.length - 1]?.place,
+      referenceCoordinate
     );
     if (!place) {
       continue;

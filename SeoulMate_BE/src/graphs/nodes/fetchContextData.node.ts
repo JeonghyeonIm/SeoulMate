@@ -239,16 +239,66 @@ const resolveCityDataAreaName = (region?: string, places: CandidatePlace[] = [])
   return placeRegion ? resolveCityDataAreaName(placeRegion) : "명동 관광특구";
 };
 
-const getReferenceCoordinate = (
+const averageCoordinate = (
   places: CandidatePlace[]
-): { latitude: number; longitude: number } => {
-  const place = places.find(
-    (item) => typeof item.latitude === "number" && typeof item.longitude === "number"
+): { latitude: number; longitude: number } | undefined => {
+  const coordinates = places.filter(
+    (place) => typeof place.latitude === "number" && typeof place.longitude === "number"
   );
 
-  return place?.latitude && place.longitude
-    ? { latitude: place.latitude, longitude: place.longitude }
-    : SEOUL_CITY_HALL;
+  if (!coordinates.length) {
+    return undefined;
+  }
+
+  const sums = coordinates.reduce(
+    (accumulator, place) => ({
+      latitude: accumulator.latitude + (place.latitude as number),
+      longitude: accumulator.longitude + (place.longitude as number)
+    }),
+    { latitude: 0, longitude: 0 }
+  );
+
+  return {
+    latitude: sums.latitude / coordinates.length,
+    longitude: sums.longitude / coordinates.length
+  };
+};
+
+const getReferenceCoordinate = (
+  region: string | undefined,
+  places: CandidatePlace[]
+): NonNullable<RecommendationContextData["referenceCoordinate"]> => {
+  const normalizedRegion = normalizeRegionText(region ?? "");
+  const regionPlaces = normalizedRegion
+    ? places.filter((place) =>
+        [place.region, place.address, place.title]
+          .filter((value): value is string => Boolean(value))
+          .some((value) => normalizeRegionText(value).includes(normalizedRegion))
+      )
+    : [];
+  const regionCoordinate = averageCoordinate(regionPlaces);
+  if (regionCoordinate) {
+    return {
+      ...regionCoordinate,
+      source: "regionCentroid"
+    };
+  }
+
+  const candidateCoordinate = averageCoordinate(places);
+  if (candidateCoordinate) {
+    const coordinateCount = places.filter(
+      (place) => typeof place.latitude === "number" && typeof place.longitude === "number"
+    ).length;
+    return {
+      ...candidateCoordinate,
+      source: coordinateCount === 1 ? "singleCandidate" : "candidateCentroid"
+    };
+  }
+
+  return {
+    ...SEOUL_CITY_HALL,
+    source: "fallback"
+  };
 };
 
 const normalizeRegionText = (value: string): string => value.toLowerCase().replace(/\s+/g, "");
@@ -528,7 +578,7 @@ export const fetchContextDataNode = async (
   const warnings: string[] = [];
   const candidatePlaces = state.candidatePlaces ?? [];
   const areaName = resolveCityDataAreaName(state.parsedRequest?.region, candidatePlaces);
-  const referenceCoordinate = getReferenceCoordinate(candidatePlaces);
+  const referenceCoordinate = getReferenceCoordinate(state.parsedRequest?.region, candidatePlaces);
   const weatherSource = chooseWeatherSource(state.parsedRequest?.dateTime);
 
   let cityData: RecommendationContextData["cityData"] | undefined;
@@ -610,6 +660,7 @@ export const fetchContextDataNode = async (
 
   return {
     contextData: {
+      referenceCoordinate,
       cityData,
       weather,
       placeDistances: buildPlaceDistances(referenceCoordinate, candidatePlaces),

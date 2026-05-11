@@ -54,6 +54,11 @@ export type WeatherSource =
 export type CongestionLevel = "low" | "medium" | "high" | "unknown";
 
 export interface RecommendationContextData {
+  referenceCoordinate?: {
+    latitude: number;
+    longitude: number;
+    source: "regionCentroid" | "candidateCentroid" | "singleCandidate" | "fallback";
+  };
   cityData?: {
     areaName: string;
     crowdLevel?: string;
