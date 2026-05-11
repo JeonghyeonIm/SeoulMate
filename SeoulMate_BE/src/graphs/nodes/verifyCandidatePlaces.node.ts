@@ -123,8 +123,6 @@ const scoreMatch = (place: CandidatePlace, kakaoPlace: KakaoLocalPlace): number 
 
 const verifyPlace = async (place: CandidatePlace, region?: string): Promise<CandidatePlace> => {
   try {
-    throw new KakaoQuotaExceededError(); // 테스트용 임시 코드
-
     const repairedCoordinate =
       !hasCoordinate(place) && place.address
         ? await mapClient.geocodeAddress(simplifyAddress(place.address) ?? place.address)
