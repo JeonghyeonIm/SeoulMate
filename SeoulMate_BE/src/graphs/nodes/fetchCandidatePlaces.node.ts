@@ -50,7 +50,12 @@ const CATEGORY_KEYWORD_ALIASES: Array<{
       "\ub9c9\uac78\ub9ac",
       "\ub9c9\uac78\ub9ac\uc9d1",
       "\uc804\ud1b5\uc8fc\uc810",
-      "\ub8e8\ud504\ud0d1\ubc14"
+      "\ub8e8\ud504\ud0d1\ubc14",
+      "lp\ubc14",
+      "\uc5d8\ud53c\ubc14",
+      "\uc7ac\uc988\ubc14",
+      "\uc640\uc778\ubc14",
+      "\uce75\ud14c\uc77c\ubc14"
     ],
     aliases: [
       "\uc220\uc9d1",
@@ -73,6 +78,15 @@ const CATEGORY_KEYWORD_ALIASES: Array<{
       "\uac10\uc131\uc8fc\uc810",
       "\uc815\uc885/\ub300\ud3ec\uc9d1/\uc18c\uc8fc\ubc29",
       "\ud638\ud504/\ud1b5\ub2ed",
+      "lp\ubc14",
+      "\uc5d8\ud53c\ubc14",
+      "lp bar",
+      "\uc7ac\uc988\ubc14",
+      "jazz bar",
+      "\uc640\uc778\ubc14",
+      "wine bar",
+      "\uce75\ud14c\uc77c\ubc14",
+      "cocktail bar",
       "club",
       "bar",
       "pub"

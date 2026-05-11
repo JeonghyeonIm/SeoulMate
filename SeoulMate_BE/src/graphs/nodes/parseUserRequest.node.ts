@@ -102,6 +102,12 @@ const normalizeMoods = (values: string[]): string[] => [
   ...new Set(values.map(normalizeMood).filter((mood): mood is string => Boolean(mood)))
 ];
 
+const uniqueStrings = (values: Array<string | undefined>): string[] => [
+  ...new Set(
+    values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))
+  )
+];
+
 const cleanParsedRequest = (value: ParsedRequestFromAi): ParsedRecommendationRequest => ({
   region: compactString(value.region),
   budget:
@@ -114,6 +120,28 @@ const cleanParsedRequest = (value: ParsedRequestFromAi): ParsedRecommendationReq
   mood: normalizeMoods(value.mood),
   purpose: compactString(value.purpose),
   preferredCategories: value.preferredCategories.map((item) => item.trim()).filter(Boolean)
+});
+
+const mergeParsedRequest = (
+  fallback: ParsedRecommendationRequest,
+  aiParsed?: ParsedRecommendationRequest,
+  preset?: ParsedRecommendationRequest
+): ParsedRecommendationRequest => ({
+  region: preset?.region ?? aiParsed?.region ?? fallback.region,
+  budget: preset?.budget ?? aiParsed?.budget ?? fallback.budget,
+  dateTime: preset?.dateTime ?? aiParsed?.dateTime ?? fallback.dateTime,
+  durationHours: preset?.durationHours ?? aiParsed?.durationHours ?? fallback.durationHours,
+  mood: normalizeMoods([
+    ...(fallback.mood ?? []),
+    ...(aiParsed?.mood ?? []),
+    ...(preset?.mood ?? [])
+  ]),
+  purpose: preset?.purpose ?? aiParsed?.purpose ?? fallback.purpose,
+  preferredCategories: uniqueStrings([
+    ...(fallback.preferredCategories ?? []),
+    ...(aiParsed?.preferredCategories ?? []),
+    ...(preset?.preferredCategories ?? [])
+  ])
 });
 
 const toKstIso = (daysToAdd: number, hour = 12): string => {
@@ -386,6 +414,22 @@ const parsePreferredCategories = (input: string): string[] => {
 
   if (
     hasAny([
+      "lp\ubc14",
+      "lp bar",
+      "\uc5d8\ud53c\ubc14",
+      "\uc7ac\uc988\ubc14",
+      "jazz bar",
+      "\uc640\uc778\ubc14",
+      "wine bar",
+      "\uce75\ud14c\uc77c\ubc14",
+      "cocktail bar"
+    ])
+  ) {
+    parsed.push("\uc220\uc9d1");
+  }
+
+  if (
+    hasAny([
       "\ucea0\ud551",
       "\ucea0\ud551\uc7a5",
       "\uc57c\uc601",
@@ -446,20 +490,6 @@ export const parseUserRequestNode = async (
   const preset = state.parsedRequest;
   const hasPresetDateTime = Boolean(preset?.dateTime);
 
-  if (
-    preset?.region &&
-    typeof preset.budget === "number" &&
-    typeof preset.durationHours === "number" &&
-    preset.mood?.length
-  ) {
-    return {
-      parsedRequest: {
-        ...fallback,
-        ...preset
-      }
-    };
-  }
-
   try {
     const parsed = await openaiClient.createJsonResponse<ParsedRequestFromAi>({
       schemaName: "seoulmate_recommendation_request",
@@ -468,11 +498,7 @@ export const parseUserRequestNode = async (
       input: state.rawInput
     });
     const cleaned = cleanParsedRequest(parsed);
-    const parsedRequest = {
-      ...fallback,
-      ...cleaned,
-      ...preset
-    };
+    const parsedRequest = mergeParsedRequest(fallback, cleaned, preset);
 
     if (!hasPresetDateTime && fallback.dateTime && hasRelativeDateExpression(state.rawInput)) {
       parsedRequest.dateTime = fallback.dateTime;
@@ -483,10 +509,7 @@ export const parseUserRequestNode = async (
     };
   } catch (error) {
     return {
-      parsedRequest: {
-        ...fallback,
-        ...preset
-      },
+      parsedRequest: mergeParsedRequest(fallback, undefined, preset),
       errors: [`parseUserRequest fallback used: ${getErrorMessage(error)}`]
     };
   }
