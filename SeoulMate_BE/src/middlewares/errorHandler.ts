@@ -31,7 +31,7 @@ export function errorHandler(
   res: Response<ErrorResponseBody>,
   _next: NextFunction
 ): void {
-  if (err instanceof ApiError) {
+  if (err instanceof ApiError && err.statusCode !== 503) {
     res.status(err.statusCode).json({
       status: err.statusCode,
       message: err.message
@@ -41,6 +41,14 @@ export function errorHandler(
   }
 
   const httpStatus = getHttpStatus(err);
+  if (err instanceof ApiError && err.statusCode === 503) {
+    res.status(503).json({
+      status: 503,
+      message: err.message
+    });
+    return;
+  }
+
   if (httpStatus && httpStatus < 500) {
     res.status(httpStatus).json({
       status: httpStatus,

@@ -1,4 +1,5 @@
-import { mapClient, type KakaoLocalPlace } from "../../clients/map.client";
+import { KakaoQuotaExceededError, mapClient, type KakaoLocalPlace } from "../../clients/map.client";
+import { ApiError } from "../../utils/ApiError";
 import { isValidSeoulCoordinate } from "../../utils/coordinates";
 import type {
   CandidatePlace,
@@ -121,56 +122,69 @@ const scoreMatch = (place: CandidatePlace, kakaoPlace: KakaoLocalPlace): number 
 };
 
 const verifyPlace = async (place: CandidatePlace, region?: string): Promise<CandidatePlace> => {
-  const repairedCoordinate =
-    !hasCoordinate(place) && place.address
-      ? await mapClient.geocodeAddress(simplifyAddress(place.address) ?? place.address)
-      : null;
-  const coordinate = repairedCoordinate
-    ? repairedCoordinate
-    : hasCoordinate(place)
-      ? { latitude: place.latitude as number, longitude: place.longitude as number }
-      : undefined;
+  try {
+    const repairedCoordinate =
+      !hasCoordinate(place) && place.address
+        ? await mapClient.geocodeAddress(simplifyAddress(place.address) ?? place.address)
+        : null;
+    const coordinate = repairedCoordinate
+      ? repairedCoordinate
+      : hasCoordinate(place)
+        ? { latitude: place.latitude as number, longitude: place.longitude as number }
+        : undefined;
 
-  const matches: Array<KakaoLocalPlace & { confidence: number }> = [];
-  for (const query of buildQueries(place, region)) {
-    const results = await mapClient.searchPlacesByKeyword(query, {
-      coordinate,
-      radiusMeter: coordinate ? 2500 : undefined,
-      size: 5
-    });
+    const matches: Array<KakaoLocalPlace & { confidence: number }> = [];
+    for (const query of buildQueries(place, region)) {
+      const results = await mapClient.searchPlacesByKeyword(query, {
+        coordinate,
+        radiusMeter: coordinate ? 2500 : undefined,
+        size: 5
+      });
 
-    matches.push(
-      ...results.map((result) => ({
-        ...result,
-        confidence: scoreMatch(place, result)
-      }))
-    );
-  }
+      matches.push(
+        ...results.map((result) => ({
+          ...result,
+          confidence: scoreMatch(place, result)
+        }))
+      );
+    }
 
-  const best = matches.sort((left, right) => right.confidence - left.confidence)[0];
-  if (!best || best.confidence < 45) {
+    const best = matches.sort((left, right) => right.confidence - left.confidence)[0];
+    if (!best || best.confidence < 45) {
+      return {
+        ...place,
+        latitude: coordinate?.latitude ?? place.latitude,
+        longitude: coordinate?.longitude ?? place.longitude,
+        mapVerification: {
+          provider: "kakaoLocal",
+          verified: false,
+          confidence: best?.confidence ?? 0
+        }
+      };
+    }
+
     return {
       ...place,
-      latitude: coordinate?.latitude ?? place.latitude,
-      longitude: coordinate?.longitude ?? place.longitude,
+      title: best.placeName || place.title,
+      address: best.roadAddressName || best.addressName || place.address,
+      latitude: best.latitude,
+      longitude: best.longitude,
+      tags: [...(place.tags ?? []), "카카오검증"],
+      metadata: {
+        ...place.metadata,
+        kakaoLocal: {
+          placeId: best.id,
+          placeName: best.placeName,
+          placeUrl: best.placeUrl,
+          categoryName: best.categoryName,
+          phone: best.phone,
+          confidence: best.confidence,
+          distanceMeter: best.distanceMeter
+        }
+      },
       mapVerification: {
         provider: "kakaoLocal",
-        verified: false,
-        confidence: best?.confidence ?? 0
-      }
-    };
-  }
-
-  return {
-    ...place,
-    title: best.placeName || place.title,
-    address: best.roadAddressName || best.addressName || place.address,
-    latitude: best.latitude,
-    longitude: best.longitude,
-    tags: [...(place.tags ?? []), "카카오검증"],
-    metadata: {
-      ...place.metadata,
-      kakaoLocal: {
+        verified: true,
         placeId: best.id,
         placeName: best.placeName,
         placeUrl: best.placeUrl,
@@ -179,19 +193,17 @@ const verifyPlace = async (place: CandidatePlace, region?: string): Promise<Cand
         confidence: best.confidence,
         distanceMeter: best.distanceMeter
       }
-    },
-    mapVerification: {
-      provider: "kakaoLocal",
-      verified: true,
-      placeId: best.id,
-      placeName: best.placeName,
-      placeUrl: best.placeUrl,
-      categoryName: best.categoryName,
-      phone: best.phone,
-      confidence: best.confidence,
-      distanceMeter: best.distanceMeter
+    };
+  } catch (error) {
+    if (error instanceof KakaoQuotaExceededError) {
+      throw new ApiError(
+        503,
+        "현재 장소 검색 서비스를 이용할 수 없습니다. 잠시 후 다시 시도해주세요."
+      );
     }
-  };
+
+    throw error;
+  }
 };
 
 const verifyInBatches = async (
