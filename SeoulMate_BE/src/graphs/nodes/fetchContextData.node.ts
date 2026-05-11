@@ -6,6 +6,7 @@ import {
   getShortTermForecast,
   getUltraShortTermForecast
 } from "../../services/weather.service";
+import { isValidSeoulCoordinate } from "../../utils/coordinates";
 import logger from "../../utils/logger";
 import type {
   CandidatePlace,
@@ -242,8 +243,8 @@ const resolveCityDataAreaName = (region?: string, places: CandidatePlace[] = [])
 const averageCoordinate = (
   places: CandidatePlace[]
 ): { latitude: number; longitude: number } | undefined => {
-  const coordinates = places.filter(
-    (place) => typeof place.latitude === "number" && typeof place.longitude === "number"
+  const coordinates = places.filter((place) =>
+    isValidSeoulCoordinate(place.latitude, place.longitude)
   );
 
   if (!coordinates.length) {
@@ -286,8 +287,8 @@ const getReferenceCoordinate = (
 
   const candidateCoordinate = averageCoordinate(places);
   if (candidateCoordinate) {
-    const coordinateCount = places.filter(
-      (place) => typeof place.latitude === "number" && typeof place.longitude === "number"
+    const coordinateCount = places.filter((place) =>
+      isValidSeoulCoordinate(place.latitude, place.longitude)
     ).length;
     return {
       ...candidateCoordinate,
@@ -525,6 +526,10 @@ const buildPlaceDistances = (
 ): RecommendationContextData["placeDistances"] =>
   places.reduce<NonNullable<RecommendationContextData["placeDistances"]>>((accumulator, place) => {
     if (typeof place.latitude !== "number" || typeof place.longitude !== "number") {
+      return accumulator;
+    }
+
+    if (!isValidSeoulCoordinate(place.latitude, place.longitude)) {
       return accumulator;
     }
 

@@ -1,4 +1,5 @@
 import { mapClient } from "../../clients/map.client";
+import { isValidSeoulCoordinate } from "../../utils/coordinates";
 import type {
   CandidatePlace,
   RecommendationCourse,
@@ -52,7 +53,7 @@ const routeCourse = async (
   route: NonNullable<SeoulMateGraphState["contextData"]>["route"];
 }> => {
   const routePoints = coursePlaces
-    .filter((place) => typeof place.latitude === "number" && typeof place.longitude === "number")
+    .filter((place) => isValidSeoulCoordinate(place.latitude, place.longitude))
     .map((place) => ({
       latitude: place.latitude as number,
       longitude: place.longitude as number

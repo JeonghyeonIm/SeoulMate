@@ -69,9 +69,27 @@ interface KakaoKeywordSearchResponse {
   documents?: KakaoKeywordDocument[];
 }
 
+interface KakaoAddressDocument {
+  address?: {
+    address_name?: string;
+    x?: string;
+    y?: string;
+  };
+  road_address?: {
+    address_name?: string;
+    x?: string;
+    y?: string;
+  };
+}
+
+interface KakaoAddressSearchResponse {
+  documents?: KakaoAddressDocument[];
+}
+
 const KAKAO_WALKING_DIRECTIONS_URL =
   "https://apis-navi.kakaomobility.com/affiliate/walking/v1/directions";
 const KAKAO_KEYWORD_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/keyword.json";
+const KAKAO_ADDRESS_SEARCH_URL = "https://dapi.kakao.com/v2/local/search/address.json";
 const EARTH_RADIUS_METER = 6371000;
 const WALKING_SPEED_METER_PER_MINUTE = 67;
 const WALKING_ROUTE_FACTOR = 1.25;
@@ -150,7 +168,12 @@ const toLocalPlace = (document: KakaoKeywordDocument): KakaoLocalPlace | null =>
   const latitude = Number(document.y);
   const longitude = Number(document.x);
 
-  if (!document.id || !document.place_name || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+  if (
+    !document.id ||
+    !document.place_name ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude)
+  ) {
     return null;
   }
 
@@ -169,6 +192,21 @@ const toLocalPlace = (document: KakaoKeywordDocument): KakaoLocalPlace | null =>
   };
 };
 
+const toAddressCoordinate = (document: KakaoAddressDocument): Coordinate | null => {
+  const source = document.road_address ?? document.address;
+  const latitude = Number(source?.y);
+  const longitude = Number(source?.x);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return {
+    latitude,
+    longitude
+  };
+};
+
 export const mapClient = {
   calculateDistanceMeter(from: Coordinate, to: Coordinate): number {
     const dLat = toRadians(to.latitude - from.latitude);
@@ -176,9 +214,7 @@ export const mapClient = {
     const lat1 = toRadians(from.latitude);
     const lat2 = toRadians(to.latitude);
 
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return Math.round(EARTH_RADIUS_METER * c * WALKING_ROUTE_FACTOR);
@@ -264,5 +300,31 @@ export const mapClient = {
     return (payload.documents ?? [])
       .map(toLocalPlace)
       .filter((place): place is KakaoLocalPlace => place !== null);
+  },
+
+  async geocodeAddress(address: string): Promise<Coordinate | null> {
+    const normalizedAddress = address.trim();
+    if (!env.KAKAO_REST_API_KEY || !normalizedAddress) {
+      return null;
+    }
+
+    const qs = new URLSearchParams({
+      query: normalizedAddress,
+      size: "1"
+    });
+
+    const response = await fetch(`${KAKAO_ADDRESS_SEARCH_URL}?${qs}`, {
+      method: "GET",
+      headers: {
+        Authorization: `KakaoAK ${env.KAKAO_REST_API_KEY}`
+      }
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as KakaoAddressSearchResponse;
+    return toAddressCoordinate(payload.documents?.[0] ?? {});
   }
 };

@@ -1,4 +1,5 @@
 import { mapClient, type KakaoLocalPlace } from "../../clients/map.client";
+import { isValidSeoulCoordinate } from "../../utils/coordinates";
 import type {
   CandidatePlace,
   SeoulMateGraphState,
@@ -29,7 +30,7 @@ const normalize = (value: string): string =>
     .trim();
 
 const hasCoordinate = (place: CandidatePlace): boolean =>
-  typeof place.latitude === "number" && typeof place.longitude === "number";
+  isValidSeoulCoordinate(place.latitude, place.longitude);
 
 const isTrustedPlace = (place: CandidatePlace): boolean =>
   Boolean(place.sourceDataset && TRUSTED_SOURCE_DATASETS.has(place.sourceDataset));
@@ -120,9 +121,15 @@ const scoreMatch = (place: CandidatePlace, kakaoPlace: KakaoLocalPlace): number 
 };
 
 const verifyPlace = async (place: CandidatePlace, region?: string): Promise<CandidatePlace> => {
-  const coordinate = hasCoordinate(place)
-    ? { latitude: place.latitude as number, longitude: place.longitude as number }
-    : undefined;
+  const repairedCoordinate =
+    !hasCoordinate(place) && place.address
+      ? await mapClient.geocodeAddress(simplifyAddress(place.address) ?? place.address)
+      : null;
+  const coordinate = repairedCoordinate
+    ? repairedCoordinate
+    : hasCoordinate(place)
+      ? { latitude: place.latitude as number, longitude: place.longitude as number }
+      : undefined;
 
   const matches: Array<KakaoLocalPlace & { confidence: number }> = [];
   for (const query of buildQueries(place, region)) {
@@ -144,6 +151,8 @@ const verifyPlace = async (place: CandidatePlace, region?: string): Promise<Cand
   if (!best || best.confidence < 45) {
     return {
       ...place,
+      latitude: coordinate?.latitude ?? place.latitude,
+      longitude: coordinate?.longitude ?? place.longitude,
       mapVerification: {
         provider: "kakaoLocal",
         verified: false,

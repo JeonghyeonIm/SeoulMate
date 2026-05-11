@@ -10,6 +10,7 @@
     "start": "node dist/server.js",
     "sync:public-data": "npm run build && node dist/jobs/runPublicDataSync.js",
     "convert:coordinates": "npm run build && node dist/jobs/runCoordinateConversion.js",
+    "repair:coordinates": "npm run build && node dist/jobs/runAddressCoordinateRepair.js",
     "sync:weather": "npm run build && node dist/jobs/runWeatherSync.js",
     "sync:living-population": "npm run build && node dist/jobs/runLivingPopulationSync.js",
     "prepare": "node scripts/setupHusky.mjs",

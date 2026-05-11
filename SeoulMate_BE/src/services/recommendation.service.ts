@@ -24,6 +24,7 @@ import type {
 import { publicDataRepository } from "../repositories/publicData.repository";
 import { recommendationRepository } from "../repositories/recommendation.repository";
 import { ApiError } from "../utils/ApiError";
+import { isValidSeoulCoordinate } from "../utils/coordinates";
 
 export interface RecommendationResult {
   requestId?: number;
@@ -876,7 +877,7 @@ const estimateVariantCost = (place: CandidatePlace): number => {
 };
 
 const hasCoordinate = (place: CandidatePlace): boolean =>
-  typeof place.latitude === "number" && typeof place.longitude === "number";
+  isValidSeoulCoordinate(place.latitude, place.longitude);
 
 const estimateVariantMoveTimeMinute = (
   previousPlace: CandidatePlace | undefined,

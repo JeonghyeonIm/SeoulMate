@@ -1,4 +1,5 @@
 import { mapClient } from "../../clients/map.client";
+import { isValidSeoulCoordinate } from "../../utils/coordinates";
 import type {
   CandidatePlace,
   RecommendationCourse,
@@ -258,7 +259,7 @@ const inferCourseRole = (place: CandidatePlace): CourseRole => {
 };
 
 const hasCoordinate = (place: CandidatePlace): boolean =>
-  typeof place.latitude === "number" && typeof place.longitude === "number";
+  isValidSeoulCoordinate(place.latitude, place.longitude);
 
 const isMapVerified = (place: CandidatePlace): boolean => place.mapVerification?.verified === true;
 

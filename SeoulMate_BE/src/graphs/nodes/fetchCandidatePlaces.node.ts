@@ -1,5 +1,6 @@
 import type { PublicDataset } from "../../models/publicDataset.model";
 import { publicDataRepository } from "../../repositories/publicData.repository";
+import { isValidSeoulCoordinate } from "../../utils/coordinates";
 import type {
   CandidatePlace,
   ParsedRecommendationRequest,
@@ -515,7 +516,7 @@ const mapCandidate = (item: PublicDataset): CandidatePlace => ({
 });
 
 const hasValidCoordinates = (place: CandidatePlace): boolean =>
-  Number.isFinite(place.latitude) && Number.isFinite(place.longitude);
+  isValidSeoulCoordinate(place.latitude, place.longitude);
 
 const parseEventDate = (value: unknown): Date | undefined => {
   if (value === null || value === undefined) {
