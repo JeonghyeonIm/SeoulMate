@@ -691,6 +691,29 @@ const resolveRegion = (region?: string): RegionResolution | undefined => {
   };
 };
 
+const placeMatchesRegion = (
+  place: CandidatePlace,
+  rawRegion: string | undefined,
+  regionResolution: RegionResolution | undefined
+): boolean => {
+  if (!rawRegion && !regionResolution) {
+    return true;
+  }
+
+  const searchSpace = [place.region, place.address, place.title]
+    .filter((value): value is string => Boolean(value))
+    .map(normalizeRegionText)
+    .join(" ");
+  const normalizedRawRegion = rawRegion ? normalizeRegionText(rawRegion) : "";
+  const regionTokens = uniqueStrings([
+    ...(normalizedRawRegion && rawRegion ? [rawRegion] : []),
+    ...(regionResolution?.districts ?? []),
+    ...(regionResolution?.aliases ?? [])
+  ]).map(normalizeRegionText);
+
+  return regionTokens.some((token) => token && searchSpace.includes(token));
+};
+
 const uniqueById = (items: PublicDataset[]): PublicDataset[] => {
   const seen = new Set<number>();
   const unique: PublicDataset[] = [];
@@ -745,6 +768,7 @@ export const fetchCandidatePlacesNode = async (
       region: request?.region,
       districts: regionResolution?.districts,
       regionAliases: regionResolution?.aliases,
+      includeTitleRegionMatch: true,
       sourceDatasets,
       keywords,
       pageSize: 80
@@ -757,6 +781,7 @@ export const fetchCandidatePlacesNode = async (
             region: request?.region,
             districts: regionResolution?.districts,
             regionAliases: regionResolution?.aliases,
+            includeTitleRegionMatch: true,
             sourceDatasets,
             pageSize: 80
           });
@@ -769,6 +794,7 @@ export const fetchCandidatePlacesNode = async (
                 region: request?.region,
                 districts: regionResolution?.districts,
                 regionAliases: regionResolution?.aliases,
+                includeTitleRegionMatch: true,
                 sourceDatasets: [sourceDataset],
                 pageSize: 12
               })
@@ -787,7 +813,7 @@ export const fetchCandidatePlacesNode = async (
           });
 
     const broadFallback =
-      primary.length || regionalFallback.length || generalFallback.length
+      primary.length || regionalFallback.length || generalFallback.length || hasRegionFilter
         ? []
         : await publicDataRepository.findRecommendationCandidates({
             sourceDatasets,
@@ -802,6 +828,9 @@ export const fetchCandidatePlacesNode = async (
       ...broadFallback
     ])
       .map(mapCandidate)
+      .filter(
+        (place) => !hasRegionFilter || placeMatchesRegion(place, request?.region, regionResolution)
+      )
       .filter(hasValidCoordinates)
       .filter((place) => !isExpiredEvent(place, request?.dateTime));
 

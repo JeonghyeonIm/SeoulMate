@@ -230,22 +230,26 @@ const scoreDistance = (place: CandidatePlace, context?: RecommendationContextDat
   const distance = context?.placeDistances?.[place.id]?.distanceMeter;
 
   if (distance === undefined) {
-    return SCORE_WEIGHT.distance * 0.65;
+    return SCORE_WEIGHT.distance * 0.45;
   }
 
-  if (distance <= 800) {
+  if (distance <= 600) {
     return SCORE_WEIGHT.distance;
   }
 
-  if (distance <= 1800) {
-    return SCORE_WEIGHT.distance * 0.85;
+  if (distance <= 1200) {
+    return SCORE_WEIGHT.distance * 0.8;
+  }
+
+  if (distance <= 2200) {
+    return SCORE_WEIGHT.distance * 0.45;
   }
 
   if (distance <= 3500) {
-    return SCORE_WEIGHT.distance * 0.55;
+    return SCORE_WEIGHT.distance * 0.15;
   }
 
-  return SCORE_WEIGHT.distance * 0.25;
+  return 0;
 };
 
 const scoreSafety = (place: CandidatePlace): number => {
