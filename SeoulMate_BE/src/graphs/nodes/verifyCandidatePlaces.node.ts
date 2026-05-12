@@ -240,7 +240,22 @@ export const verifyCandidatePlacesNode = async (
   const skipped = candidatePlaces.filter(
     (place) => !verificationTargets.some((target) => target.id === place.id)
   );
-  const verifiedTargets = await verifyInBatches(verificationTargets, state.parsedRequest?.region);
+
+  let verifiedTargets: CandidatePlace[];
+  try {
+    verifiedTargets = await verifyInBatches(verificationTargets, state.parsedRequest?.region);
+  } catch (error) {
+    if (error instanceof ApiError && error.statusCode === 503) {
+      return {
+        candidatePlaces,
+        warnings: [
+          "Kakao 장소 검증 서비스를 일시적으로 사용할 수 없어 좌표 기반 데이터로 추천합니다."
+        ]
+      };
+    }
+    throw error;
+  }
+
   const verified = verifiedTargets.filter((place) => place.mapVerification?.verified);
   const trustedFallback = verifiedTargets.filter(
     (place) => !place.mapVerification?.verified && hasCoordinate(place) && isTrustedPlace(place)
