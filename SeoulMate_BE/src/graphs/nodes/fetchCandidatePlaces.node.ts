@@ -520,6 +520,8 @@ const mapCandidate = (item: PublicDataset): CandidatePlace => ({
   placeFamily: item.placeFamily ?? undefined,
   placeType: item.placeType ?? undefined,
   placeSubtype: item.placeSubtype ?? undefined,
+  kakaoCategoryName: item.kakaoCategoryName ?? undefined,
+  kakaoCategoryGroupName: item.kakaoCategoryGroupName ?? undefined,
   region: item.region ?? undefined,
   address: item.address ?? undefined,
   latitude: item.latitude ?? undefined,

@@ -17,6 +17,8 @@ export interface CandidatePlace {
   placeFamily?: string;
   placeType?: string;
   placeSubtype?: string;
+  kakaoCategoryName?: string;
+  kakaoCategoryGroupName?: string;
   region?: string;
   address?: string;
   latitude?: number;

@@ -1,5 +1,25 @@
 import { mapClient } from "../../clients/map.client";
 import { isValidSeoulCoordinate } from "../../utils/coordinates";
+import {
+  ACTIVITY_KEYWORDS,
+  AMUSEMENT_KEYWORDS,
+  AMUSEMENT_REGION_HINTS,
+  ATTRACTION_KEYWORDS,
+  CAFE_KEYWORDS,
+  CAMPING_KEYWORDS,
+  CHICKEN_PIZZA_KEYWORDS,
+  CULTURE_KEYWORDS,
+  FOOD_KEYWORDS,
+  KARAOKE_KEYWORDS,
+  NIGHTLIFE_KEYWORDS,
+  WALK_KEYWORDS,
+  PLACE_FAMILY_TO_ROLE,
+  defaultRoleOrder,
+  includesAny,
+  requestedRolesFromCategories,
+  resolvePlaceCountRange,
+  type CourseRole
+} from "../courseRole";
 import type {
   CandidatePlace,
   RecommendationCourse,
@@ -9,127 +29,15 @@ import type {
   SeoulMateGraphUpdate
 } from "../recommendation.state";
 
-type CourseRole =
-  | "cafe"
-  | "culture"
-  | "walk"
-  | "food"
-  | "nightlife"
-  | "karaoke"
-  | "activity"
-  | "camping"
-  | "amusement"
-  | "attraction";
-
-const includesAny = (text: string, keywords: string[]): boolean =>
-  keywords.some((keyword) => text.includes(keyword.toLowerCase()));
-
-const NIGHTLIFE_KEYWORDS = [
-  "\uc220\uc9d1",
-  "2\ucc28",
-  "\ud638\ud504\uc9d1",
-  "\uc8fc\uc810",
-  "\ud638\ud504",
-  "\ud3ec\ucc28",
-  "\ub9e5\uc8fc",
-  "\uc640\uc778",
-  "\uce75\ud14c\uc77c",
-  "\uc774\uc790\uce74\uc57c",
-  "\ud38d",
-  "\ud558\uc774\ubcfc",
-  "\ub9c9\uac78\ub9ac",
-  "\ub9c9\uac78\ub9ac\uc9d1",
-  "\uc804\ud1b5\uc8fc\uc810",
-  "\ub8e8\ud504\ud0d1\ubc14",
-  "\ud63c\uc220",
-  "\uac10\uc131\uc8fc\uc810",
-  "\ud074\ub7fd",
-  "\ub098\uc774\ud2b8",
-  "\uc815\uc885/\ub300\ud3ec\uc9d1/\uc18c\uc8fc\ubc29",
-  "\ud638\ud504/\ud1b5\ub2ed",
-  "club",
-  "bar",
-  "pub"
-];
-
-const CHICKEN_PIZZA_KEYWORDS = [
-  "\uce58\ud0a8",
-  "\ud1b5\ub2ed",
-  "\ud53c\uc790",
-  "\ud53c\uc790\uc9d1",
-  "chicken",
-  "pizza"
-];
-
-const KARAOKE_KEYWORDS = [
-  "\ub178\ub798\ubc29",
-  "\ub178\ub798\uc5f0\uc2b5\uc7a5",
-  "\ucf54\uc778\ub178\ub798\ubc29",
-  "\ub3d9\uc804\ub178\ub798\uc5f0\uc2b5\uc7a5",
-  "karaoke"
-];
-
-const ACTIVITY_KEYWORDS = [
-  "\ubc29\ud0c8\ucd9c",
-  "\ubcf4\ub4dc\uac8c\uc784",
-  "\ubcf4\ub4dc\uac8c\uc784\uce74\ud398",
-  "\ucc1c\uc9c8\ubc29",
-  "\ubcfc\ub9c1",
-  "\ub2f9\uad6c",
-  "\ub2f9\uad6c\uc7a5",
-  "\ub9cc\ud654\uce74\ud398",
-  "\uacf5\ubc29",
-  "\uc6d0\ub370\uc774\ud074\ub798\uc2a4",
-  "\ud5a5\uc218",
-  "\ub3c4\uc790\uae30",
-  "\ud074\ub77c\uc774\ubc0d",
-  "vr",
-  "\uc544\ucf00\uc774\ub4dc",
-  "\uc2e4\ub0b4\ub180\uac70\ub9ac",
-  "\uc561\ud2f0\ube44\ud2f0",
-  "\uccb4\ud5d8",
-  "\ubcf5\ud569\uc720\ud1b5\uac8c\uc784\uc81c\uacf5\uc5c5",
-  "\uccb4\ub825\ub2e8\ub828\uc7a5\uc5c5"
-];
-
-const CAMPING_KEYWORDS = [
-  "\ucea0\ud551",
-  "\ucea0\ud551\uc7a5",
-  "\uc57c\uc601",
-  "\uae00\ub7a8\ud551",
-  "\ubc14\ubca0\ud050",
-  "\ud53c\ud06c\ub2c9\uc7a5",
-  "\ud53c\ud06c\ub2c9"
-];
-
-const AMUSEMENT_KEYWORDS = [
-  "\ub180\uc774\uc2dc\uc124",
-  "\ub180\uc774\uacf5\uc6d0",
-  "\ud14c\ub9c8\ud30c\ud06c",
-  "\uc5b4\ud2b8\ub799\uc158",
-  "\uc6cc\ud130\ud30c\ud06c",
-  "\uc5b4\ub4dc\ubca4\ucc98",
-  "\ub86f\ub370\uc6d4\ub4dc",
-  "\uc5b4\ub9b0\uc774\ub300\uacf5\uc6d0",
-  "\ud5c8\uac00\ud14c\ub9c8\ud30c\ud06c\uc5c5"
-];
-
-const AMUSEMENT_REGION_HINTS = [
-  "\uc7a0\uc2e4",
-  "\uc1a1\ud30c",
-  "\ub86f\ub370\uc6d4\ub4dc",
-  "\uc5b4\ub9b0\uc774\ub300\uacf5\uc6d0",
-  "\ub2a5\ub3d9",
-  "\uad11\uc9c4",
-  "\ubb38\uc815",
-  "\ud30c\ud06c\ud558\ube44\uc624",
-  "\uc6cc\ud130\ud0b9\ub364"
-];
-
 const placeText = (place: CandidatePlace): string =>
   [
     place.title,
     place.category,
+    place.placeFamily,
+    place.placeType,
+    place.placeSubtype,
+    place.kakaoCategoryName,
+    place.kakaoCategoryGroupName,
     place.region,
     place.address,
     place.sourceDataset,
@@ -157,19 +65,15 @@ const estimateCost = (place: CandidatePlace): number => {
     return 0;
   }
 
-  if (includesAny(text, ["카페", "커피", "디저트", "베이커리"])) {
+  if (includesAny(text, CAFE_KEYWORDS)) {
     return 9000;
   }
 
-  if (includesAny(text, ["음식", "식당", "맛집", "restaurant"])) {
+  if (includesAny(text, FOOD_KEYWORDS) || includesAny(text, CHICKEN_PIZZA_KEYWORDS)) {
     return 15000;
   }
 
-  if (includesAny(text, CHICKEN_PIZZA_KEYWORDS)) {
-    return 15000;
-  }
-
-  if (includesAny(text, ["문화", "전시", "공연", "박물관"])) {
+  if (includesAny(text, CULTURE_KEYWORDS)) {
     return 12000;
   }
 
@@ -197,49 +101,26 @@ const estimateCost = (place: CandidatePlace): number => {
 };
 
 const roleMatches = (role: CourseRole, place: CandidatePlace): boolean => {
+  if (place.placeFamily) {
+    const mapped = PLACE_FAMILY_TO_ROLE[place.placeFamily.toLowerCase()];
+    if (mapped !== undefined) {
+      return mapped === role;
+    }
+  }
+
   const text = placeText(place);
-
-  if (role === "nightlife") {
-    return includesAny(text, NIGHTLIFE_KEYWORDS);
-  }
-
-  if (role === "karaoke") {
-    return includesAny(text, KARAOKE_KEYWORDS);
-  }
-
-  if (role === "activity") {
-    return includesAny(text, ACTIVITY_KEYWORDS);
-  }
-
-  if (role === "camping") {
-    return includesAny(text, CAMPING_KEYWORDS);
-  }
-
-  if (role === "amusement") {
-    return includesAny(text, AMUSEMENT_KEYWORDS);
-  }
-
-  if (role === "cafe") {
-    return includesAny(text, ["카페", "커피", "디저트", "베이커리", "휴게"]);
-  }
-
-  if (role === "culture") {
-    return includesAny(text, ["문화", "전시", "공연", "박물관", "공간"]);
-  }
-
-  if (role === "walk") {
-    return includesAny(text, ["공원", "산책", "자연", "숲", "한강", "야외"]);
-  }
-
-  if (role === "food" && includesAny(text, CHICKEN_PIZZA_KEYWORDS)) {
-    return true;
-  }
-
+  if (role === "nightlife") return includesAny(text, NIGHTLIFE_KEYWORDS);
+  if (role === "karaoke") return includesAny(text, KARAOKE_KEYWORDS);
+  if (role === "activity") return includesAny(text, ACTIVITY_KEYWORDS);
+  if (role === "camping") return includesAny(text, CAMPING_KEYWORDS);
+  if (role === "amusement") return includesAny(text, AMUSEMENT_KEYWORDS);
+  if (role === "cafe") return includesAny(text, CAFE_KEYWORDS);
+  if (role === "culture") return includesAny(text, CULTURE_KEYWORDS);
+  if (role === "walk") return includesAny(text, WALK_KEYWORDS);
   if (role === "food") {
-    return includesAny(text, ["음식", "식당", "맛집", "restaurant", "인허가"]);
+    return includesAny(text, FOOD_KEYWORDS) || includesAny(text, CHICKEN_PIZZA_KEYWORDS);
   }
-
-  return includesAny(text, ["관광", "명소", "야경", "attraction"]);
+  return includesAny(text, ATTRACTION_KEYWORDS);
 };
 
 const inferCourseRole = (place: CandidatePlace): CourseRole => {
@@ -262,16 +143,6 @@ const hasCoordinate = (place: CandidatePlace): boolean =>
   isValidSeoulCoordinate(place.latitude, place.longitude);
 
 const isMapVerified = (place: CandidatePlace): boolean => place.mapVerification?.verified === true;
-
-const resolvePlaceCountRange = (durationHours: number): { min: number; max: number } => {
-  if (durationHours <= 2) return { min: 1, max: 2 };
-  if (durationHours <= 4) return { min: 2, max: 3 };
-  if (durationHours <= 6) return { min: 3, max: 4 };
-  if (durationHours <= 8) return { min: 4, max: 5 };
-  if (durationHours <= 10) return { min: 5, max: 6 };
-  if (durationHours <= 12) return { min: 6, max: 7 };
-  return { min: 7, max: 8 };
-};
 
 const estimatedTimeByRole = (role: CourseRole, durationHours: number): number => {
   const compactDurations: Record<CourseRole, number> = {
@@ -308,11 +179,11 @@ const roleLabel = (role: CourseRole, fallback: string): string =>
     culture: "문화공간",
     walk: "산책",
     food: "음식점",
-    nightlife: "\uc220\uc9d1",
-    karaoke: "\ub178\ub798\ubc29",
-    activity: "\uc2e4\ub0b4\ub180\uac70\ub9ac",
-    camping: "\ucea0\ud551\uc7a5",
-    amusement: "\ub180\uc774\uc2dc\uc124",
+    nightlife: "술집",
+    karaoke: "노래방",
+    activity: "실내놀거리",
+    camping: "캠핑장",
+    amusement: "놀이시설",
     attraction: fallback
   })[role];
 
@@ -323,30 +194,22 @@ const resolveRoles = (state: SeoulMateGraphState): CourseRole[] => {
   const durationHours = state.parsedRequest?.durationHours ?? 3;
   const budget = state.parsedRequest?.budget;
   const roles: CourseRole[] = [];
-  const pushRole = (...nextRoles: CourseRole[]): void => {
-    for (const nextRole of nextRoles) {
-      if (!roles.includes(nextRole)) {
-        roles.push(nextRole);
-      }
+  const roleCounts = new Map<CourseRole, number>();
+
+  const pushRole = (nextRole: CourseRole, allowDuplicate = false): void => {
+    const count = roleCounts.get(nextRole) ?? 0;
+    if (count === 0 || (allowDuplicate && count < 2)) {
+      roles.push(nextRole);
+      roleCounts.set(nextRole, count + 1);
     }
   };
 
-  for (const category of categories) {
-    if (includesAny(category, NIGHTLIFE_KEYWORDS)) pushRole("nightlife");
-    else if (includesAny(category, KARAOKE_KEYWORDS)) pushRole("karaoke");
-    else if (includesAny(category, ACTIVITY_KEYWORDS)) pushRole("activity");
-    else if (includesAny(category, CAMPING_KEYWORDS)) pushRole("camping");
-    else if (includesAny(category, AMUSEMENT_KEYWORDS)) pushRole("amusement");
-    else if (includesAny(category, ["카페", "커피"])) pushRole("cafe");
-    else if (includesAny(category, ["전시", "문화", "공연"])) pushRole("culture");
-    else if (includesAny(category, ["실내"])) pushRole("cafe", "culture");
-    else if (includesAny(category, ["산책", "공원", "자연"])) pushRole("walk");
-    else if (includesAny(category, ["식사", "음식", "맛집"])) pushRole("food");
-    else pushRole("attraction");
+  for (const role of requestedRolesFromCategories(categories)) {
+    pushRole(role);
   }
 
   if (
-    mood.some((item) => item.includes("\ud65c\uae30")) &&
+    mood.some((item) => item.includes("활기")) &&
     AMUSEMENT_REGION_HINTS.some((hint) => region.includes(hint)) &&
     durationHours >= 4 &&
     (budget === undefined || budget === 200001 || budget >= 30000)
@@ -354,14 +217,23 @@ const resolveRoles = (state: SeoulMateGraphState): CourseRole[] => {
     pushRole("amusement");
   }
 
-  const defaults: CourseRole[] = ["cafe", "culture", "walk", "food", "attraction"];
-  for (const role of defaults) {
-    pushRole(role);
+  const count = resolvePlaceCountRange(durationHours).max;
+  const targetCount = Math.max(count, roles.length);
+  while (roles.length < targetCount) {
+    const previousLength = roles.length;
+    for (const role of defaultRoleOrder(state.parsedRequest?.dateTime)) {
+      pushRole(role, true);
+      if (roles.length >= targetCount) {
+        break;
+      }
+    }
+
+    if (roles.length === previousLength) {
+      break;
+    }
   }
 
-  const count = resolvePlaceCountRange(durationHours).max;
-
-  return roles.slice(0, count);
+  return roles;
 };
 
 const estimateMoveTimeMinute = (
@@ -454,7 +326,7 @@ const selectPlace = (
   scoreById: Map<number, number>,
   usedPlaceIds: Set<number>,
   usedPlaceTitles: Set<string>,
-  usedRoles: Set<CourseRole>,
+  usedRoleCounts: Map<CourseRole, number>,
   remainingBudget?: number,
   previousPlace?: CandidatePlace,
   referenceCoordinate?: { latitude: number; longitude: number }
@@ -463,12 +335,15 @@ const selectPlace = (
     (place) =>
       !usedPlaceIds.has(place.id) &&
       !usedPlaceTitles.has(normalizePlaceTitle(place.title)) &&
+      (usedRoleCounts.get(inferCourseRole(place)) ?? 0) < 2 &&
       (remainingBudget === undefined || estimateCost(place) <= remainingBudget)
   );
-  const diverseAvailable = available.filter((place) => !usedRoles.has(inferCourseRole(place)));
+  const diverseAvailable = available.filter(
+    (place) => (usedRoleCounts.get(inferCourseRole(place)) ?? 0) === 0
+  );
   const roleMatchesPlaces = available.filter((place) => roleMatches(role, place));
   const diverseRoleMatches = roleMatchesPlaces.filter(
-    (place) => !usedRoles.has(inferCourseRole(place))
+    (place) => (usedRoleCounts.get(inferCourseRole(place)) ?? 0) === 0
   );
   const rawPool = diverseRoleMatches.length
     ? diverseRoleMatches
@@ -550,7 +425,7 @@ export const buildCourseNode = async (
   const selected: Array<{ role: CourseRole; place: CandidatePlace }> = [];
   const usedPlaceIds = new Set<number>();
   const usedPlaceTitles = new Set<string>();
-  const usedRoles = new Set<CourseRole>();
+  const usedRoleCounts = new Map<CourseRole, number>();
   const placeCountRange = resolvePlaceCountRange(durationHours);
   const maxDurationMinute = durationHours > 12 ? Number.POSITIVE_INFINITY : durationHours * 60;
   let remainingBudget = state.parsedRequest?.budget;
@@ -562,7 +437,7 @@ export const buildCourseNode = async (
       scoreById,
       usedPlaceIds,
       usedPlaceTitles,
-      usedRoles,
+      usedRoleCounts,
       remainingBudget,
       selected[selected.length - 1]?.place,
       referenceCoordinate
@@ -579,7 +454,8 @@ export const buildCourseNode = async (
     selected.push({ role, place });
     usedPlaceIds.add(place.id);
     usedPlaceTitles.add(normalizePlaceTitle(place.title));
-    usedRoles.add(inferCourseRole(place));
+    const inferredRole = inferCourseRole(place);
+    usedRoleCounts.set(inferredRole, (usedRoleCounts.get(inferredRole) ?? 0) + 1);
 
     if (remainingBudget !== undefined) {
       remainingBudget -= estimateCost(place);

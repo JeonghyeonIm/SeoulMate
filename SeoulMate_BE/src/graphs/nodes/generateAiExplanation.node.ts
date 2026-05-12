@@ -1,6 +1,7 @@
 import { openaiClient } from "../../clients/openai.client";
 import type {
   AiExplanation,
+  RecommendationCourse,
   SeoulMateGraphState,
   SeoulMateGraphUpdate
 } from "../recommendation.state";
@@ -79,6 +80,33 @@ const fallbackExplanation = (state: SeoulMateGraphState): AiExplanation => {
       weather?.rainProbability && weather.rainProbability >= 60
         ? "비 예보가 있어 야외 산책 비중이 큰 장소는 실내 문화공간이나 카페로 바꾸는 것을 권장합니다."
         : "혼잡도가 높게 나오면 같은 지역의 실내 문화공간 또는 카페 중심 코스로 조정할 수 있습니다."
+  };
+};
+
+export const generateAiCourseExplanation = async (params: {
+  parsedRequest?: SeoulMateGraphState["parsedRequest"];
+  course: RecommendationCourse;
+  contextData?: SeoulMateGraphState["contextData"];
+  scoredPlaces?: SeoulMateGraphState["scoredPlaces"];
+}): Promise<AiExplanation> => {
+  const response = await openaiClient.createJsonResponse<AiExplanationResponse>({
+    schemaName: "seoulmate_ai_explanation",
+    schema: explanationSchema,
+    instructions: explanationInstructions,
+    input: JSON.stringify({
+      request: params.parsedRequest,
+      course: params.course,
+      context: params.contextData,
+      scoredPlaces: params.scoredPlaces?.slice(0, 8)
+    }),
+    maxOutputTokens: 600
+  });
+
+  return {
+    summary: response.summary,
+    reason: response.reason,
+    riskNotice: compact(response.riskNotice),
+    alternativeSuggestion: compact(response.alternativeSuggestion)
   };
 };
 

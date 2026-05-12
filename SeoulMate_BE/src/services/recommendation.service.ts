@@ -1,5 +1,25 @@
 import { mapClient } from "../clients/map.client";
 import {
+  ACTIVITY_KEYWORDS,
+  AMUSEMENT_KEYWORDS,
+  AMUSEMENT_REGION_HINTS,
+  CAFE_KEYWORDS,
+  CAMPING_KEYWORDS,
+  CHICKEN_PIZZA_KEYWORDS,
+  CULTURE_KEYWORDS,
+  FOOD_KEYWORDS,
+  KARAOKE_KEYWORDS,
+  NIGHTLIFE_KEYWORDS,
+  WALK_KEYWORDS,
+  PLACE_FAMILY_TO_ROLE,
+  defaultRoleOrder,
+  includesAny,
+  requestedRolesFromCategories,
+  resolvePlaceCountRange,
+  type CourseRole
+} from "../graphs/courseRole";
+import { generateAiCourseExplanation } from "../graphs/nodes/generateAiExplanation.node";
+import {
   runRecommendationGraph,
   runRecommendationGraphForApi
 } from "../graphs/recommendation.graph";
@@ -125,18 +145,6 @@ type RecommendationVariant = {
   type: RecommendationType;
   mood?: string;
 };
-
-type CourseRole =
-  | "cafe"
-  | "culture"
-  | "walk"
-  | "food"
-  | "nightlife"
-  | "karaoke"
-  | "activity"
-  | "camping"
-  | "amusement"
-  | "attraction";
 
 type BuiltCourseVariant = {
   type: RecommendationType;
@@ -529,6 +537,11 @@ const placeSearchText = (place: CandidatePlace): string =>
   [
     place.title,
     place.category,
+    place.placeFamily,
+    place.placeType,
+    place.placeSubtype,
+    place.kakaoCategoryName,
+    place.kakaoCategoryGroupName,
     place.region,
     place.address,
     place.sourceDataset,
@@ -539,123 +552,9 @@ const placeSearchText = (place: CandidatePlace): string =>
     .join(" ")
     .toLowerCase();
 
-const textIncludesAny = (text: string, keywords: string[]): boolean =>
-  keywords.some((keyword) => text.includes(keyword.toLowerCase()));
-
-const NIGHTLIFE_KEYWORDS = [
-  "\uc220\uc9d1",
-  "2\ucc28",
-  "\ud638\ud504\uc9d1",
-  "\uc8fc\uc810",
-  "\ud638\ud504",
-  "\ud3ec\ucc28",
-  "\ub9e5\uc8fc",
-  "\uc640\uc778",
-  "\uce75\ud14c\uc77c",
-  "\uc774\uc790\uce74\uc57c",
-  "\ud38d",
-  "\ud558\uc774\ubcfc",
-  "\ub9c9\uac78\ub9ac",
-  "\ub9c9\uac78\ub9ac\uc9d1",
-  "\uc804\ud1b5\uc8fc\uc810",
-  "\ub8e8\ud504\ud0d1\ubc14",
-  "\ud63c\uc220",
-  "\uac10\uc131\uc8fc\uc810",
-  "\ud074\ub7fd",
-  "\ub098\uc774\ud2b8",
-  "\uc815\uc885/\ub300\ud3ec\uc9d1/\uc18c\uc8fc\ubc29",
-  "\ud638\ud504/\ud1b5\ub2ed",
-  "lp\ubc14",
-  "\uc5d8\ud53c\ubc14",
-  "lp bar",
-  "\uc7ac\uc988\ubc14",
-  "jazz bar",
-  "\uc640\uc778\ubc14",
-  "wine bar",
-  "\uce75\ud14c\uc77c\ubc14",
-  "cocktail bar",
-  "club",
-  "bar",
-  "pub"
-];
-
-const CHICKEN_PIZZA_KEYWORDS = [
-  "\uce58\ud0a8",
-  "\ud1b5\ub2ed",
-  "\ud53c\uc790",
-  "\ud53c\uc790\uc9d1",
-  "chicken",
-  "pizza"
-];
-
-const KARAOKE_KEYWORDS = [
-  "\ub178\ub798\ubc29",
-  "\ub178\ub798\uc5f0\uc2b5\uc7a5",
-  "\ucf54\uc778\ub178\ub798\ubc29",
-  "\ub3d9\uc804\ub178\ub798\uc5f0\uc2b5\uc7a5",
-  "karaoke"
-];
-
-const ACTIVITY_KEYWORDS = [
-  "\ubc29\ud0c8\ucd9c",
-  "\ubcf4\ub4dc\uac8c\uc784",
-  "\ubcf4\ub4dc\uac8c\uc784\uce74\ud398",
-  "\ucc1c\uc9c8\ubc29",
-  "\ubcfc\ub9c1",
-  "\ub2f9\uad6c",
-  "\ub2f9\uad6c\uc7a5",
-  "\ub9cc\ud654\uce74\ud398",
-  "\uacf5\ubc29",
-  "\uc6d0\ub370\uc774\ud074\ub798\uc2a4",
-  "\ud5a5\uc218",
-  "\ub3c4\uc790\uae30",
-  "\ud074\ub77c\uc774\ubc0d",
-  "vr",
-  "\uc544\ucf00\uc774\ub4dc",
-  "\uc2e4\ub0b4\ub180\uac70\ub9ac",
-  "\uc561\ud2f0\ube44\ud2f0",
-  "\uccb4\ud5d8",
-  "\ubcf5\ud569\uc720\ud1b5\uac8c\uc784\uc81c\uacf5\uc5c5",
-  "\uccb4\ub825\ub2e8\ub828\uc7a5\uc5c5"
-];
-
-const CAMPING_KEYWORDS = [
-  "\ucea0\ud551",
-  "\ucea0\ud551\uc7a5",
-  "\uc57c\uc601",
-  "\uae00\ub7a8\ud551",
-  "\ubc14\ubca0\ud050",
-  "\ud53c\ud06c\ub2c9\uc7a5",
-  "\ud53c\ud06c\ub2c9"
-];
-
-const AMUSEMENT_KEYWORDS = [
-  "\ub180\uc774\uc2dc\uc124",
-  "\ub180\uc774\uacf5\uc6d0",
-  "\ud14c\ub9c8\ud30c\ud06c",
-  "\uc5b4\ud2b8\ub799\uc158",
-  "\uc6cc\ud130\ud30c\ud06c",
-  "\uc5b4\ub4dc\ubca4\ucc98",
-  "\ub86f\ub370\uc6d4\ub4dc",
-  "\uc5b4\ub9b0\uc774\ub300\uacf5\uc6d0",
-  "\ud5c8\uac00\ud14c\ub9c8\ud30c\ud06c\uc5c5"
-];
-
-const AMUSEMENT_REGION_HINTS = [
-  "\uc7a0\uc2e4",
-  "\uc1a1\ud30c",
-  "\ub86f\ub370\uc6d4\ub4dc",
-  "\uc5b4\ub9b0\uc774\ub300\uacf5\uc6d0",
-  "\ub2a5\ub3d9",
-  "\uad11\uc9c4",
-  "\ubb38\uc815",
-  "\ud30c\ud06c\ud558\ube44\uc624",
-  "\uc6cc\ud130\ud0b9\ub364"
-];
-
 const isIndoorVariantPlace = (place: CandidatePlace): boolean => {
   const text = placeSearchText(place);
-  return textIncludesAny(text, [
+  return includesAny(text, [
     "cafe",
     "restaurant",
     "카페",
@@ -680,7 +579,7 @@ const isIndoorVariantPlace = (place: CandidatePlace): boolean => {
 
 const isOutdoorVariantPlace = (place: CandidatePlace): boolean => {
   const text = placeSearchText(place);
-  return textIncludesAny(text, ["공원", "산책", "자연", "야외", "둘레길", "한강", "숲", "하천"]);
+  return includesAny(text, ["공원", "산책", "자연", "야외", "둘레길", "한강", "숲", "하천"]);
 };
 
 const moodAffinityScore = (place: CandidatePlace, mood?: string): number => {
@@ -690,7 +589,7 @@ const moodAffinityScore = (place: CandidatePlace, mood?: string): number => {
 
   const text = placeSearchText(place);
   if (mood.includes("힙")) {
-    return textIncludesAny(text, [
+    return includesAny(text, [
       "성수",
       "홍대",
       "연남",
@@ -707,7 +606,7 @@ const moodAffinityScore = (place: CandidatePlace, mood?: string): number => {
   }
 
   if (mood.includes("로맨틱") || mood.includes("낭만")) {
-    return textIncludesAny(text, [
+    return includesAny(text, [
       "야경",
       "한강",
       "전망",
@@ -723,7 +622,7 @@ const moodAffinityScore = (place: CandidatePlace, mood?: string): number => {
   }
 
   if (mood.includes("고즈넉") || mood.includes("조용")) {
-    return textIncludesAny(text, [
+    return includesAny(text, [
       "궁",
       "한옥",
       "북촌",
@@ -742,24 +641,13 @@ const moodAffinityScore = (place: CandidatePlace, mood?: string): number => {
   }
 
   if (mood.includes("현대")) {
-    return textIncludesAny(text, [
-      "ddp",
-      "디자인",
-      "현대",
-      "복합",
-      "미술관",
-      "전시",
-      "갤러리",
-      "공간"
-    ])
+    return includesAny(text, ["ddp", "디자인", "현대", "복합", "미술관", "전시", "갤러리", "공간"])
       ? 3
       : 0;
   }
 
   if (mood.includes("감성")) {
-    return textIncludesAny(text, ["카페", "갤러리", "전시", "문화", "서점", "디저트", "공간"])
-      ? 3
-      : 0;
+    return includesAny(text, ["카페", "갤러리", "전시", "문화", "서점", "디저트", "공간"]) ? 3 : 0;
   }
 
   if (mood.includes("자연친화")) {
@@ -767,7 +655,7 @@ const moodAffinityScore = (place: CandidatePlace, mood?: string): number => {
   }
 
   if (mood.includes("활기")) {
-    return textIncludesAny(text, ["거리", "시장", "맛집", "관광", "상권", "홍대", "명동", "강남"])
+    return includesAny(text, ["거리", "시장", "맛집", "관광", "상권", "홍대", "명동", "강남"])
       ? 3
       : 0;
   }
@@ -782,50 +670,21 @@ const normalizeVariantPlaceTitle = (title: string): string =>
     .replace(/[^가-힣a-z0-9]/g, "");
 
 const inferVariantRole = (place: CandidatePlace): CourseRole => {
+  if (place.placeFamily) {
+    const mapped = PLACE_FAMILY_TO_ROLE[place.placeFamily.toLowerCase()];
+    if (mapped !== undefined) return mapped;
+  }
+
   const text = placeSearchText(place);
-
-  if (textIncludesAny(text, NIGHTLIFE_KEYWORDS)) {
-    return "nightlife";
-  }
-
-  if (textIncludesAny(text, KARAOKE_KEYWORDS)) {
-    return "karaoke";
-  }
-
-  if (textIncludesAny(text, ACTIVITY_KEYWORDS)) {
-    return "activity";
-  }
-
-  if (textIncludesAny(text, CAMPING_KEYWORDS)) {
-    return "camping";
-  }
-
-  if (textIncludesAny(text, AMUSEMENT_KEYWORDS)) {
-    return "amusement";
-  }
-
-  if (textIncludesAny(text, ["restaurant", "음식", "식당", "맛집", "한식", "양식", "일식"])) {
-    return "food";
-  }
-
-  if (textIncludesAny(text, CHICKEN_PIZZA_KEYWORDS)) {
-    return "food";
-  }
-
-  if (textIncludesAny(text, ["cafe", "카페", "커피", "베이커리", "디저트"])) {
-    return "cafe";
-  }
-
-  if (textIncludesAny(text, ["park", "nature", "공원", "산책", "자연", "숲", "하천"])) {
-    return "walk";
-  }
-
-  if (
-    textIncludesAny(text, ["culture", "attraction", "전시", "문화", "공연", "박물관", "미술관"])
-  ) {
-    return "culture";
-  }
-
+  if (includesAny(text, NIGHTLIFE_KEYWORDS)) return "nightlife";
+  if (includesAny(text, KARAOKE_KEYWORDS)) return "karaoke";
+  if (includesAny(text, ACTIVITY_KEYWORDS)) return "activity";
+  if (includesAny(text, CAMPING_KEYWORDS)) return "camping";
+  if (includesAny(text, AMUSEMENT_KEYWORDS)) return "amusement";
+  if (includesAny(text, FOOD_KEYWORDS) || includesAny(text, CHICKEN_PIZZA_KEYWORDS)) return "food";
+  if (includesAny(text, CAFE_KEYWORDS)) return "cafe";
+  if (includesAny(text, WALK_KEYWORDS)) return "walk";
+  if (includesAny(text, CULTURE_KEYWORDS)) return "culture";
   return "attraction";
 };
 
@@ -846,16 +705,6 @@ const variantRoleLabel = (role: CourseRole, fallback: string): string =>
     amusement: "\ub180\uc774\uc2dc\uc124",
     attraction: fallback
   })[role];
-
-const resolvePlaceCountRange = (durationHours: number): { min: number; max: number } => {
-  if (durationHours <= 2) return { min: 1, max: 2 };
-  if (durationHours <= 4) return { min: 2, max: 3 };
-  if (durationHours <= 6) return { min: 3, max: 4 };
-  if (durationHours <= 8) return { min: 4, max: 5 };
-  if (durationHours <= 10) return { min: 5, max: 6 };
-  if (durationHours <= 12) return { min: 6, max: 7 };
-  return { min: 7, max: 8 };
-};
 
 const variantRoleDuration = (role: CourseRole, durationHours: number): number => {
   const compactDurations: Record<CourseRole, number> = {
@@ -944,36 +793,6 @@ const estimateProjectedVariantDuration = (
   variantRoleDuration(next.role, durationHours) +
   estimateVariantMoveTimeMinute(selected[selected.length - 1]?.place, next.place);
 
-const specialRolesFromCategories = (categories: string[] = []): CourseRole[] => {
-  const roles: CourseRole[] = [];
-  const pushRole = (role: CourseRole): void => {
-    if (!roles.includes(role)) {
-      roles.push(role);
-    }
-  };
-
-  for (const category of categories) {
-    const normalized = category.toLowerCase();
-    if (textIncludesAny(normalized, NIGHTLIFE_KEYWORDS)) {
-      pushRole("nightlife");
-    }
-    if (textIncludesAny(normalized, KARAOKE_KEYWORDS)) {
-      pushRole("karaoke");
-    }
-    if (textIncludesAny(normalized, ACTIVITY_KEYWORDS)) {
-      pushRole("activity");
-    }
-    if (textIncludesAny(normalized, CAMPING_KEYWORDS)) {
-      pushRole("camping");
-    }
-    if (textIncludesAny(normalized, AMUSEMENT_KEYWORDS)) {
-      pushRole("amusement");
-    }
-  }
-
-  return roles;
-};
-
 const shouldPreferAmusementRole = (request?: ParsedRecommendationRequest): boolean => {
   const mood = request?.mood ?? [];
   const region = request?.region ?? "";
@@ -987,10 +806,45 @@ const shouldPreferAmusementRole = (request?: ParsedRecommendationRequest): boole
   return hasLivelyMood && isAmusementArea && hasEnoughDuration && hasEnoughBudget;
 };
 
-const specialRolesFromRequest = (request?: ParsedRecommendationRequest): CourseRole[] => {
-  const roles = specialRolesFromCategories(request?.preferredCategories);
+const requestedRolesFromRequest = (request?: ParsedRecommendationRequest): CourseRole[] => {
+  const roles = requestedRolesFromCategories(request?.preferredCategories);
   if (shouldPreferAmusementRole(request) && !roles.includes("amusement")) {
     roles.push("amusement");
+  }
+
+  return roles;
+};
+
+const buildCourseRoles = (
+  request: ParsedRecommendationRequest | undefined,
+  maxDefaultCount: number
+): CourseRole[] => {
+  const requestedRoles = requestedRolesFromRequest(request);
+  const targetCount = Math.max(maxDefaultCount, requestedRoles.length);
+  const roleCounts = new Map<CourseRole, number>();
+  const roles: CourseRole[] = [];
+  const pushRole = (role: CourseRole, allowDuplicate: boolean): void => {
+    const count = roleCounts.get(role) ?? 0;
+    if (count === 0 || (allowDuplicate && count < 2)) {
+      roles.push(role);
+      roleCounts.set(role, count + 1);
+    }
+  };
+
+  requestedRoles.forEach((role) => pushRole(role, false));
+
+  while (roles.length < targetCount) {
+    const previousLength = roles.length;
+    for (const role of defaultRoleOrder(request?.dateTime)) {
+      pushRole(role, true);
+      if (roles.length >= targetCount) {
+        break;
+      }
+    }
+
+    if (roles.length === previousLength) {
+      break;
+    }
   }
 
   return roles;
@@ -1045,6 +899,7 @@ const selectVariantPlace = (
   pool: CandidatePlace[],
   usedIds: Set<number>,
   usedTitles: Set<string>,
+  usedRoleCounts: Map<CourseRole, number>,
   remainingBudget?: number,
   previousPlace?: CandidatePlace,
   preferNearest = false,
@@ -1054,6 +909,7 @@ const selectVariantPlace = (
     (place) =>
       !usedIds.has(place.id) &&
       !usedTitles.has(normalizeVariantPlaceTitle(place.title)) &&
+      (usedRoleCounts.get(inferVariantRole(place)) ?? 0) < 2 &&
       (remainingBudget === undefined || estimateVariantCost(place) <= remainingBudget) &&
       (!options.strictIndoor || isIndoorVariantPlace(place))
   );
@@ -1122,23 +978,6 @@ const routeCoursePlaces = async (
   });
 };
 
-const variantRoles: Record<RecommendationType, CourseRole[]> = {
-  best: ["cafe", "culture", "walk", "food", "attraction", "cafe", "culture", "food"],
-  balanced: ["cafe", "culture", "walk", "food", "attraction", "cafe", "culture", "food"],
-  indoor: ["cafe", "culture", "food", "cafe", "culture", "food", "attraction", "cafe"],
-  "low-budget": ["walk", "cafe", "culture", "walk", "attraction", "cafe", "culture", "food"],
-  "short-walk": ["cafe", "culture", "food", "cafe", "culture", "attraction", "food", "cafe"],
-  "mood-quiet": ["cafe", "culture", "walk", "cafe", "culture", "food", "attraction", "cafe"],
-  "mood-hip": ["cafe", "culture", "attraction", "food", "cafe", "culture", "food", "attraction"],
-  "mood-poetic": ["walk", "cafe", "culture", "food", "attraction", "walk", "cafe", "culture"],
-  "mood-romantic": ["cafe", "walk", "culture", "food", "attraction", "cafe", "walk", "food"],
-  "mood-lively": ["attraction", "food", "cafe", "culture", "food", "attraction", "cafe", "walk"],
-  "mood-calm": ["culture", "walk", "cafe", "attraction", "food", "culture", "walk", "cafe"],
-  "mood-modern": ["culture", "cafe", "attraction", "food", "culture", "cafe", "attraction", "food"],
-  "mood-emotional": ["cafe", "culture", "cafe", "walk", "food", "culture", "cafe", "attraction"],
-  "mood-nature": ["walk", "cafe", "attraction", "food", "walk", "culture", "cafe", "walk"]
-};
-
 const buildVariantTitle = (
   state: SeoulMateGraphState,
   type: RecommendationType,
@@ -1183,17 +1022,14 @@ const buildCourseVariant = async (
 
   const durationHours = state.parsedRequest?.durationHours ?? 3;
   const placeCountRange = resolvePlaceCountRange(durationHours);
-  const requestedSpecialRoles = specialRolesFromRequest(state.parsedRequest);
-  const roles = [
-    ...requestedSpecialRoles,
-    ...variantRoles[type].filter((role) => !requestedSpecialRoles.includes(role))
-  ].slice(0, Math.max(placeCountRange.max, requestedSpecialRoles.length));
+  const requestedRoles = requestedRolesFromRequest(state.parsedRequest);
+  const roles = buildCourseRoles(state.parsedRequest, placeCountRange.max);
   const sortedCandidates = sortCandidatesForVariant(
     candidates,
     state.scoredPlaces,
     type,
     mood,
-    requestedSpecialRoles
+    requestedRoles
   );
   if (!sortedCandidates.length) {
     return null;
@@ -1201,6 +1037,7 @@ const buildCourseVariant = async (
 
   const usedIds = new Set<number>();
   const usedTitles = new Set<string>();
+  const usedRoleCounts = new Map<CourseRole, number>();
   const selected: Array<{ role: CourseRole; place: CandidatePlace }> = [];
   const maxDurationMinute = durationHours > 12 ? Number.POSITIVE_INFINITY : durationHours * 60;
   let remainingBudget =
@@ -1214,7 +1051,8 @@ const buildCourseVariant = async (
       sortedCandidates,
       usedIds,
       usedTitles,
-      requestedSpecialRoles.includes(role) ? undefined : remainingBudget,
+      usedRoleCounts,
+      requestedRoles.includes(role) ? undefined : remainingBudget,
       selected[selected.length - 1]?.place,
       type === "short-walk" || type === "balanced",
       { strictIndoor: type === "indoor", mood }
@@ -1236,6 +1074,8 @@ const buildCourseVariant = async (
     selected.push({ role, place });
     usedIds.add(place.id);
     usedTitles.add(normalizeVariantPlaceTitle(place.title));
+    const inferredRole = inferVariantRole(place);
+    usedRoleCounts.set(inferredRole, (usedRoleCounts.get(inferredRole) ?? 0) + 1);
 
     if (remainingBudget !== undefined) {
       remainingBudget -= estimateVariantCost(place);
@@ -1298,12 +1138,22 @@ const fallbackVariantExplanation = (
 const attachBatchExplanations = async (
   state: SeoulMateGraphState,
   variants: BuiltCourseVariant[]
-): Promise<BuiltCourseVariant[]> => {
-  return variants.map((variant) => ({
-    ...variant,
-    explanation: fallbackVariantExplanation(state, variant)
-  }));
-};
+): Promise<BuiltCourseVariant[]> =>
+  Promise.all(
+    variants.map(async (variant) => {
+      try {
+        const explanation = await generateAiCourseExplanation({
+          parsedRequest: state.parsedRequest,
+          course: variant.course,
+          contextData: state.contextData,
+          scoredPlaces: state.scoredPlaces
+        });
+        return { ...variant, explanation };
+      } catch {
+        return { ...variant, explanation: fallbackVariantExplanation(state, variant) };
+      }
+    })
+  );
 
 const saveBuiltCourseVariant = async (
   state: SeoulMateGraphState,
