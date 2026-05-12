@@ -11,6 +11,8 @@ import { publicDataRepository } from "../repositories/publicData.repository";
 import { epsg5174ToWgs84 } from "../utils/coordinates";
 import logger from "../utils/logger";
 
+import { matchKakaoUrlsForDatasets } from "./kakaoUrlMatching.service";
+
 interface SyncDatasetResult {
   dataset: string;
   importedCount: number;
@@ -389,7 +391,7 @@ const syncCulturalEventDataset = async (): Promise<SyncDatasetResult> => {
     })
   );
 
-  return replaceDataset(DATASET_CATEGORY.CULTURAL_EVENT, "culturalEventInfo", items);
+  return upsertDataset(DATASET_CATEGORY.CULTURAL_EVENT, items);
 };
 
 const syncCulturalSpaceDataset = async (): Promise<SyncDatasetResult> => {
@@ -555,6 +557,10 @@ export const syncDailyPublicData = async (): Promise<PublicDataSyncSummary> => {
 
     const totalImportedCount = datasets.reduce((sum, dataset) => sum + dataset.importedCount, 0);
     await publicDataRepository.completeSyncRun(run.id, totalImportedCount, 0);
+
+    matchKakaoUrlsForDatasets(["culturalEventInfo", "culturalSpaceInfo"]).catch((error) => {
+      logger.error({ err: error }, "Post-sync Kakao URL matching failed");
+    });
 
     return {
       source: DAILY_PUBLIC_DATA_SYNC_SOURCE,

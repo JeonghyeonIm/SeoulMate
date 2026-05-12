@@ -4,6 +4,16 @@ import { type AuthenticatedRequest } from "../middlewares/auth";
 import { recommendationService } from "../services/recommendation.service";
 import { ApiError } from "../utils/ApiError";
 
+const readDateParam = (value: unknown, fieldName: string): string | undefined => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string")
+    throw new ApiError(400, `${fieldName}은 날짜 문자열이어야 합니다.`);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime()))
+    throw new ApiError(400, `${fieldName}은 유효한 날짜 형식이 아닙니다.`);
+  return d.toISOString();
+};
+
 export const recommendCourse = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -66,7 +76,9 @@ export const listMyCourses = async (
     res.status(200).json(
       await recommendationService.listMyCoursesForApi(req.user.id, {
         page: Number(req.query.page) || 1,
-        pageSize: Number(req.query.page_size ?? req.query.pageSize) || 10
+        pageSize: Number(req.query.page_size ?? req.query.pageSize) || 10,
+        from: readDateParam(req.query.from, "from"),
+        to: readDateParam(req.query.to, "to")
       })
     );
   } catch (error) {

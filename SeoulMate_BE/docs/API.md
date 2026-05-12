@@ -266,10 +266,11 @@ Authorization: Bearer <access_token>
 ```
 
 - 참고:
-  - `vibes`, `regions`, `budget`, `preferredRegion` 중 하나 이상은 반드시 포함되어야 합니다
+  - `vibes`, `regions`, `budget` 중 하나 이상은 반드시 포함되어야 합니다
   - `vibes`, `regions`가 존재하면 문자열 배열이어야 합니다
   - `budget`이 존재하면 양수여야 합니다
-  - `regions`가 전달되면 서버는 이를 합쳐 하나의 preferred region 문자열로 저장합니다
+  - `regions`가 전달되면 서버는 이를 `,`로 합쳐 하나의 preferred region 문자열로 저장합니다
+  - `preferredRegion` (문자열)을 직접 전달하면 `regions` 없이도 지역을 덮어쓸 수 있습니다
 - 성공 응답: `200 OK`
 - 응답:
 
@@ -399,7 +400,12 @@ Authorization: Bearer <access_token>
           "name": "샘플 카페",
           "lat": 37.54,
           "lng": 127.05,
-          "order": 1
+          "mapUrl": "https://place.map.kakao.com/...",
+          "order": 1,
+          "stayDuration": 60,
+          "priceMin": 9000,
+          "priceMax": 9000,
+          "reason": "분위기와 잘 맞는 조용한 카페"
         }
       ]
     },
@@ -430,9 +436,18 @@ Authorization: Bearer <access_token>
   - `courses`: 추천 코스 배열. 기본 3개를 반환하고, 후보가 충분하면 최대 4개까지 반환합니다
   - `recommendedCourseId`: 서버가 가장 추천하는 코스 ID. 같은 코스는 `courses[].isRecommended: true`로도 표시됩니다
   - `courses[].recommendationRank`: 추천 순위. 1번이 가장 추천하는 코스입니다
-  - `courses[].recommendationType`: 추천 성격. 분위기 선택 시 `mood-quiet`, `mood-hip`, `mood-poetic`, `mood-romantic`, `mood-lively`, `mood-calm`, `mood-modern`, `mood-emotional`, `mood-nature` 중 하나가 반환됩니다. 분위기 선택이 없으면 `best`, `balanced`, `indoor`, `low-budget` 조합을 반환합니다
+  - `courses[].recommendationType`: 추천 성격. 분위기 선택 시 `mood-quiet`, `mood-hip`, `mood-poetic`, `mood-romantic`, `mood-lively`, `mood-calm`, `mood-modern`, `mood-emotional`, `mood-nature` 중 하나가 반환됩니다. 분위기 선택이 없으면 `best`, `balanced`, `indoor`, `low-budget`, `short-walk` 조합을 반환합니다
   - `courses[].congestion`: 행정동 단위 서울 생활인구 통계 기반 혼잡도. 산출 불가 시 `unknown`
   - `courses[].weather`: 모든 날씨 source에서 `{ source, skyStatus, temperature, rainProbability, weatherAlert }` 형식으로 반환합니다
+  - `courses[].places[]`: 코스에 포함된 장소 배열
+    - `id`: 장소 ID (`plc_숫자` 형식)
+    - `name`: 장소명
+    - `lat`, `lng`: 위경도
+    - `mapUrl`: Kakao 지도 장소 URL. 매칭 정보가 없으면 `null`
+    - `order`: 코스 내 방문 순서
+    - `stayDuration`: 예상 체류 시간 (분). 정보 없으면 `null`
+    - `priceMin`, `priceMax`: 예상 비용 범위 (원). 정보 없으면 `0`
+    - `reason`: LLM이 이 장소를 선택한 이유. 정보 없으면 `null`
   - `warnings` (optional): 외부 API 장애 등으로 일부 정보가 누락된 경우에만 포함되는 경고 메시지 배열
 
 예시: 날씨 API timeout 발생 시
@@ -461,6 +476,8 @@ Authorization: Bearer <access_token>
 - 쿼리 파라미터:
   - `page` 선택, 기본값 `1`
   - `page_size` 또는 `pageSize` 선택, 기본값 `10`, 최대 `50`
+  - `from` 선택, ISO 8601 날짜·시간 문자열. 이 시각 이후 생성된 코스만 반환합니다 (예: `2026-05-01T00:00:00+09:00`)
+  - `to` 선택, ISO 8601 날짜·시간 문자열. 이 시각 이전 생성된 코스만 반환합니다
 - 성공 응답: `200 OK`
 - 응답:
 
@@ -474,12 +491,20 @@ Authorization: Bearer <access_token>
       "totalCost": 36000,
       "duration": 240,
       "congestion": "medium",
+      "weather": {
+        "source": "short-term",
+        "skyStatus": "맑음",
+        "temperature": 18,
+        "rainProbability": 20,
+        "weatherAlert": null
+      },
       "places": [
         {
           "id": "plc_101",
           "name": "Sample Cafe",
           "lat": 37.54,
           "lng": 127.05,
+          "mapUrl": "https://place.map.kakao.com/...",
           "order": 1,
           "stayDuration": 60,
           "priceMin": 9000,
@@ -494,6 +519,10 @@ Authorization: Bearer <access_token>
   "page_size": 10
 }
 ```
+
+- 참고:
+  - `weather.source`: `citydata`, `ultra-short-term`, `short-term`, `medium-term`, `unavailable` 중 하나. 날씨 정보가 없으면 `unavailable`이고 나머지 필드는 `null`
+  - `places[].mapUrl`: Kakao 지도 장소 URL. 매칭 정보가 없으면 `null`
 
 ### `GET /api/courses/saved`
 
@@ -609,5 +638,4 @@ Authorization: Bearer <access_token>
 ## Notes
 
 - `GET /api/users`와 `GET /api/users/{userId}`는 현재 관리자 전용이 아니라 인증만 필요합니다.
-- `POST /api/auth/logout`은 서버 측 토큰 폐기를 수행하지 않습니다.
 - `courseId`, `placeId` 경로 파라미터는 순수 숫자 ID뿐 아니라 `crs_12`, `plc_101` 같은 접두사 형식도 허용합니다.

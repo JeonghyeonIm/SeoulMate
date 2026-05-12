@@ -51,6 +51,8 @@ const mapPublicDataset = (row: Record<string, unknown>): PublicDataset => ({
   kakaoMatchConfidence:
     row.kakao_match_confidence === null ? null : Number(row.kakao_match_confidence),
   kakaoMatchedAt: (row.kakao_matched_at as string | null) ?? null,
+  menuPriceFirst: row.menu_price_first === null ? null : Number(row.menu_price_first),
+  menuNameFirst: (row.menu_name_first as string | null) ?? null,
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at)
 });

@@ -24,6 +24,8 @@ export interface CandidatePlace {
   latitude?: number;
   longitude?: number;
   estimatedCost?: number;
+  menuPriceFirst?: number;
+  menuNameFirst?: string;
   tags?: string[];
   sourceDataset?: string;
   source?: string;

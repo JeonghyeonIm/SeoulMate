@@ -21,6 +21,8 @@ export interface PublicDataset {
   kakaoCategoryGroupName: string | null;
   kakaoMatchConfidence: number | null;
   kakaoMatchedAt: string | null;
+  menuPriceFirst: number | null;
+  menuNameFirst: string | null;
   createdAt: string;
   updatedAt: string;
 }

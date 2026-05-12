@@ -498,8 +498,6 @@ const toWeatherResponse = (weather?: RecommendationContextData["weather"]): Weat
   weatherAlert: weather?.weatherAlert ?? null
 });
 
-const weatherSnapshotByRequestId = new Map<number, WeatherResponse>();
-
 const MOOD_VARIANT_BY_MOOD: Record<string, RecommendationType> = {
   조용한: "mood-quiet",
   힙한: "mood-hip",
@@ -1177,10 +1175,12 @@ const saveBuiltCourseVariant = async (
     courseDurationMinutes: courseDuration(variant.course.places),
     courseCongestion: resolveCourseCongestion(state.contextData),
     courseDescription: variant.explanation?.summary ?? variant.explanation?.reason ?? null,
-    courseEstimatedBudget: variant.course.estimatedBudget
+    courseEstimatedBudget: variant.course.estimatedBudget,
+    courseWeather: toWeatherResponse(state.contextData?.weather) as unknown as Record<
+      string,
+      unknown
+    >
   });
-
-  weatherSnapshotByRequestId.set(request.id, toWeatherResponse(state.contextData?.weather));
 
   if (variant.course.places.length) {
     await recommendationRepository.createItems(
@@ -1234,7 +1234,11 @@ const toCourseResponseFromVariant = (
     lat: place.latitude ?? null,
     lng: place.longitude ?? null,
     mapUrl: resolvePlaceMapUrl(getCandidate(candidates, place.placeId)),
-    order: place.order
+    order: place.order,
+    stayDuration: place.estimatedTimeMinute,
+    priceMin: place.estimatedCost ?? 0,
+    priceMax: place.estimatedCost ?? 0,
+    reason: variant.explanation?.summary ?? variant.explanation?.reason
   }))
 });
 
@@ -1276,7 +1280,9 @@ const toCourseResponseFromDetail = (detail: CourseDetail): CourseResponse => {
     totalCost,
     duration,
     congestion: toCongestion(detail.request.courseCongestion),
-    weather: weatherSnapshotByRequestId.get(detail.request.id) ?? toWeatherResponse(),
+    weather: detail.request.courseWeather
+      ? (detail.request.courseWeather as unknown as WeatherResponse)
+      : toWeatherResponse(),
     places: detail.items.map((item, index) => {
       const cost = item.estimatedCost ?? 0;
       return {
@@ -1321,10 +1327,13 @@ export const recommendationService = {
         courseDurationMinutes: state.course ? courseDuration(state.course.places) : null,
         courseCongestion: state.course ? resolveCourseCongestion(state.contextData) : null,
         courseDescription: state.aiExplanation?.summary ?? state.aiExplanation?.reason ?? null,
-        courseEstimatedBudget: state.course?.estimatedBudget ?? null
+        courseEstimatedBudget: state.course?.estimatedBudget ?? null,
+        courseWeather: toWeatherResponse(state.contextData?.weather) as unknown as Record<
+          string,
+          unknown
+        >
       });
       requestId = request.id;
-      weatherSnapshotByRequestId.set(request.id, toWeatherResponse(state.contextData?.weather));
 
       if (state.course?.places.length) {
         await recommendationRepository.createItems(
@@ -1443,7 +1452,7 @@ export const recommendationService = {
 
   async listMyCourses(
     userId: number,
-    params: { page?: number; pageSize?: number }
+    params: { page?: number; pageSize?: number; from?: string; to?: string }
   ): Promise<CourseDetail[]> {
     const requests = await recommendationRepository.listRequestsByUser(userId, params);
     return Promise.all(requests.map((request) => buildCourseDetail(request)));
@@ -1451,13 +1460,13 @@ export const recommendationService = {
 
   async listMyCoursesForApi(
     userId: number,
-    params: { page?: number; pageSize?: number }
+    params: { page?: number; pageSize?: number; from?: string; to?: string }
   ): Promise<PagedCoursesResponse> {
     const page = Math.max(1, params.page ?? 1);
     const pageSize = Math.max(1, Math.min(params.pageSize ?? 10, 50));
     const [details, total] = await Promise.all([
-      this.listMyCourses(userId, { page, pageSize }),
-      recommendationRepository.countRequestsByUser(userId)
+      this.listMyCourses(userId, { page, pageSize, from: params.from, to: params.to }),
+      recommendationRepository.countRequestsByUser(userId, { from: params.from, to: params.to })
     ]);
 
     return {

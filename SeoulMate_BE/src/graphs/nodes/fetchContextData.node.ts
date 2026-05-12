@@ -387,10 +387,6 @@ const chooseWeatherSource = (dateTime?: string): WeatherSource => {
   const diffHours = (target.getTime() - Date.now()) / (60 * 60 * 1000);
   logger.info({ dateTime, diffHours }, "[fetchContextData] weather source 분기 계산");
 
-  if (diffHours <= 0.5) {
-    return "ultraShortTerm";
-  }
-
   if (diffHours <= 6) {
     return "ultraShortTerm";
   }
@@ -587,23 +583,17 @@ export const fetchContextDataNode = async (
   const weatherSource = chooseWeatherSource(state.parsedRequest?.dateTime);
 
   let cityData: RecommendationContextData["cityData"] | undefined;
-  if (weatherSource === "cityData") {
-    try {
-      cityData = normalizeCityData(areaName, await seoulOpenDataClient.fetchCityData(areaName));
-    } catch (error) {
-      errors.push(`citydata unavailable: ${getErrorMessage(error)}`);
-      warnings.push(WEATHER_WARNING);
-    }
+  try {
+    cityData = normalizeCityData(areaName, await seoulOpenDataClient.fetchCityData(areaName));
+  } catch (error) {
+    errors.push(`citydata unavailable: ${getErrorMessage(error)}`);
   }
 
   let weather: RecommendationContextData["weather"];
   let livingPopulation: RecommendationContextData["livingPopulation"] | undefined;
 
   try {
-    if (weatherSource === "cityData") {
-      logger.info("[fetchContextData] weatherSource: cityData");
-      weather = summarizeCityDataWeather(cityData, state.parsedRequest?.dateTime);
-    } else if (weatherSource === "ultraShortTerm") {
+    if (weatherSource === "ultraShortTerm") {
       logger.info("[fetchContextData] weatherSource: ultraShortTerm");
       weather = summarizeUltraShortWeather(
         await getUltraShortTermForecast(

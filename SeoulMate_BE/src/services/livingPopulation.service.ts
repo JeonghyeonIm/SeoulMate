@@ -1,6 +1,7 @@
 import * as unzipper from "unzipper";
 
 import { seoulOpenDataClient, parseCsv } from "../clients/seoulOpenData.client";
+import { db } from "../config/db";
 import {
   livingPopulationRepository,
   LivingPopulationUpsertInput
@@ -108,6 +109,55 @@ const buildUpsertItems = (
   }
 
   return items;
+};
+
+const hasLivingPopulationData = async (): Promise<boolean> => {
+  const result = await db.query<{ count: string }>(
+    "SELECT count(*)::int AS count FROM living_population_stats LIMIT 1"
+  );
+  return parseInt(result.rows[0]?.count ?? "0", 10) > 0;
+};
+
+let livingPopulationSyncTimer: NodeJS.Timeout | null = null;
+
+export const scheduleLivingPopulationSync = (): void => {
+  const runSync = async () => {
+    try {
+      const summary = await syncLivingPopulationData(3);
+      logger.info({ summary }, "생활인구 월간 동기화 완료");
+    } catch (err) {
+      logger.error({ err }, "생활인구 동기화 실패");
+    }
+  };
+
+  const scheduleNext = () => {
+    // 매달 1일 03:00 KST에 실행
+    const now = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const next = new Date(now);
+    next.setUTCDate(1);
+    next.setUTCHours(3, 0, 0, 0);
+    if (next.getTime() <= Date.now() + 9 * 60 * 60 * 1000) {
+      next.setUTCMonth(next.getUTCMonth() + 1);
+    }
+    const delay = next.getTime() - (Date.now() + 9 * 60 * 60 * 1000);
+    livingPopulationSyncTimer = setTimeout(async () => {
+      await runSync();
+      scheduleNext();
+    }, delay);
+  };
+
+  if (livingPopulationSyncTimer) clearTimeout(livingPopulationSyncTimer);
+
+  hasLivingPopulationData()
+    .then((hasData) => {
+      if (!hasData) {
+        logger.warn(
+          "living_population_stats 테이블이 비어 있습니다. `npm run sync:living-population` 으로 초기 데이터를 적재해주세요."
+        );
+      }
+      scheduleNext();
+    })
+    .catch((err) => logger.error({ err }, "생활인구 데이터 확인 실패"));
 };
 
 export const syncLivingPopulationData = async (

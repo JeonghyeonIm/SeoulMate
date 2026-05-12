@@ -13,6 +13,7 @@ export interface RecommendationRequest {
   courseCongestion: string | null;
   courseDescription: string | null;
   courseEstimatedBudget: number | null;
+  courseWeather: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,6 +32,7 @@ export interface CreateRecommendationRequestInput {
   courseCongestion?: string | null;
   courseDescription?: string | null;
   courseEstimatedBudget?: number | null;
+  courseWeather?: Record<string, unknown> | null;
 }
 
 export interface RecommendationItem {

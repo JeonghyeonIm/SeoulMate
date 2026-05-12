@@ -277,10 +277,37 @@ const scorePurpose = (place: CandidatePlace, request?: ParsedRecommendationReque
   }
 
   const text = buildSearchText(place);
+  const purpose = request.purpose;
+
   if (
-    request.purpose.includes("첫") &&
-    includesAny(text, ["카페", "문화", "전시", "공원", "산책", "음식", "식당"])
+    (purpose.includes("데이트") || purpose.includes("첫") || purpose.includes("연인")) &&
+    includesAny(text, ["카페", "문화", "전시", "공원", "산책", "야경", "갤러리", "한강"])
   ) {
+    return SCORE_WEIGHT.purpose;
+  }
+
+  if (
+    (purpose.includes("친구") || purpose.includes("모임")) &&
+    includesAny(text, ["음식", "식당", "맛집", "카페", "게임", "볼링", "활동"])
+  ) {
+    return SCORE_WEIGHT.purpose;
+  }
+
+  if (
+    (purpose.includes("가족") || purpose.includes("어린이") || purpose.includes("아이")) &&
+    includesAny(text, ["공원", "체험", "박물관", "어린이", "놀이", "전시"])
+  ) {
+    return SCORE_WEIGHT.purpose;
+  }
+
+  if (
+    (purpose.includes("혼자") || purpose.includes("혼행") || purpose.includes("solo")) &&
+    includesAny(text, ["카페", "서점", "전시", "산책", "미술관", "공원"])
+  ) {
+    return SCORE_WEIGHT.purpose;
+  }
+
+  if (purpose.includes("비즈니스") && includesAny(text, ["레스토랑", "식당", "카페", "호텔"])) {
     return SCORE_WEIGHT.purpose;
   }
 

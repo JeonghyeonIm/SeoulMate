@@ -24,6 +24,7 @@ const mapRecommendationRequest = (row: Record<string, unknown>): RecommendationR
   courseDescription: (row.course_description as string | null) ?? null,
   courseEstimatedBudget:
     row.course_estimated_budget === null ? null : Number(row.course_estimated_budget),
+  courseWeather: (row.course_weather as Record<string, unknown> | null) ?? null,
   createdAt: String(row.created_at),
   updatedAt: String(row.updated_at)
 });
@@ -65,9 +66,10 @@ export const recommendationRepository = {
          course_duration_minutes,
          course_congestion,
          course_description,
-         course_estimated_budget
+         course_estimated_budget,
+         course_weather
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         input.userId,
@@ -82,7 +84,8 @@ export const recommendationRepository = {
         input.courseDurationMinutes ?? null,
         input.courseCongestion ?? null,
         input.courseDescription ?? null,
-        input.courseEstimatedBudget ?? null
+        input.courseEstimatedBudget ?? null,
+        input.courseWeather ? JSON.stringify(input.courseWeather) : null
       ]
     );
 
@@ -112,29 +115,59 @@ export const recommendationRepository = {
 
   async listRequestsByUser(
     userId: number,
-    params: { page?: number; pageSize?: number }
+    params: { page?: number; pageSize?: number; from?: string; to?: string }
   ): Promise<RecommendationRequest[]> {
     const page = Math.max(1, params.page ?? 1);
     const pageSize = Math.max(1, Math.min(params.pageSize ?? 20, 100));
+    const conditions: string[] = ["user_id = $1"];
+    const values: unknown[] = [userId];
+
+    if (params.from) {
+      values.push(params.from);
+      conditions.push(`created_at >= $${values.length}`);
+    }
+
+    if (params.to) {
+      values.push(params.to);
+      conditions.push(`created_at < $${values.length}`);
+    }
+
+    values.push(pageSize, (page - 1) * pageSize);
     const result = await db.query(
       `SELECT *
          FROM recommendation_requests
-        WHERE user_id = $1
+        WHERE ${conditions.join(" AND ")}
         ORDER BY created_at DESC, id DESC
-        LIMIT $2
-       OFFSET $3`,
-      [userId, pageSize, (page - 1) * pageSize]
+        LIMIT $${values.length - 1}
+       OFFSET $${values.length}`,
+      values
     );
 
     return result.rows.map(mapRecommendationRequest);
   },
 
-  async countRequestsByUser(userId: number): Promise<number> {
+  async countRequestsByUser(
+    userId: number,
+    params: { from?: string; to?: string } = {}
+  ): Promise<number> {
+    const conditions: string[] = ["user_id = $1"];
+    const values: unknown[] = [userId];
+
+    if (params.from) {
+      values.push(params.from);
+      conditions.push(`created_at >= $${values.length}`);
+    }
+
+    if (params.to) {
+      values.push(params.to);
+      conditions.push(`created_at < $${values.length}`);
+    }
+
     const result = await db.query(
       `SELECT count(*)::int AS total
          FROM recommendation_requests
-        WHERE user_id = $1`,
-      [userId]
+        WHERE ${conditions.join(" AND ")}`,
+      values
     );
 
     return Number(result.rows[0]?.total ?? 0);
