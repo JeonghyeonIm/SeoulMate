@@ -13,6 +13,7 @@
     "repair:coordinates": "npm run build && node dist/jobs/runAddressCoordinateRepair.js",
     "normalize:categories": "npm run build && node dist/jobs/runPublicDataCategoryNormalization.js",
     "normalize:kakao-categories": "npm run build && node dist/jobs/runKakaoPlaceCategoryNormalization.js",
+    "match:kakao-urls": "npm run build && node dist/jobs/runKakaoUrlMatching.js",
     "sync:weather": "npm run build && node dist/jobs/runWeatherSync.js",
     "sync:living-population": "npm run build && node dist/jobs/runLivingPopulationSync.js",
     "prepare": "node scripts/setupHusky.mjs",
