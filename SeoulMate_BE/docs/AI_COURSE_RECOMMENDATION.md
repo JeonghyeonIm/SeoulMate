@@ -35,11 +35,100 @@ src/
 │       ├── generateAiExplanation.node.ts    # LLM 설명 생성
 │       ├── generateRiskNotice.node.ts       # 리스크 알림 생성
 │       └── formatRecommendationResult.node.ts
-└── services/
-    └── recommendation.service.ts            # API 경로 variant 빌더 + 저장
+├── services/
+│   └── recommendation.service.ts            # API 경로 variant 빌더 + 저장
+└── jobs/
+    ├── runPublicDataSync.ts                  # 공공데이터 원본 동기화
+    ├── runPublicDataCategoryNormalization.ts # rule-based 카테고리 분류
+    ├── runKakaoPlaceCategoryNormalization.ts # LOCALDATA용 Kakao 매칭 (음식/카페)
+    ├── runKakaoUrlMatching.ts               # 비LOCALDATA 7개 데이터셋 Kakao URL 매칭
+    ├── runAddressCoordinateRepair.ts        # 주소 → 좌표 지오코딩 보정
+    ├── runWeatherSync.ts                    # 날씨 데이터 동기화
+    └── runLivingPopulationSync.ts           # 생활인구 데이터 동기화
 ```
 
 `courseRole.ts`는 `buildCourse.node.ts`와 `recommendation.service.ts` 양쪽에서 공통으로 import한다. role 키워드·상수·유틸이 모두 이 파일에 있다.
+
+---
+
+## 배치 데이터 파이프라인
+
+추천 시스템이 사용하는 `public_data` 테이블은 여러 배치 잡을 통해 구축된다.
+
+### 데이터 흐름
+
+```
+공공 API 원본 데이터
+  → runPublicDataSync              (원본 동기화)
+  → runPublicDataCategoryNormalization  (rule-based 분류 → placeFamily, placeType)
+  → runAddressCoordinateRepair     (주소 → 좌표 보정)
+  → runKakaoPlaceCategoryNormalization  (LOCALDATA 음식/카페 → Kakao 매칭)
+  → runKakaoUrlMatching            (비LOCALDATA 7개 데이터셋 → Kakao URL 확보)
+```
+
+### npm 스크립트
+
+| 스크립트                             | 설명                                    |
+| ------------------------------------ | --------------------------------------- |
+| `npm run sync:public-data`           | 공공데이터 원본 동기화                  |
+| `npm run normalize:categories`       | rule-based 카테고리 분류                |
+| `npm run normalize:kakao-categories` | LOCALDATA 음식/카페 Kakao 매칭          |
+| `npm run match:kakao-urls`           | 비LOCALDATA 7개 데이터셋 Kakao URL 매칭 |
+| `npm run repair:coordinates`         | 주소 → 좌표 지오코딩 보정               |
+
+### runKakaoUrlMatching — 상세
+
+`LOCALDATA_072404`(음식점 인허가)·`LOCALDATA_072405`(카페 인허가) 외 7개 데이터셋은 기존 Kakao 정규화 잡의 적용 범위 밖이었다. `runKakaoUrlMatching`은 이 데이터셋을 대상으로 Kakao 장소 keyword search를 통해 `kakao_place_url`을 확보한다.
+
+대상 데이터셋 및 실행 후 커버리지 (2026-05-12 기준):
+
+| 데이터셋                | 설명              |  전체 | Kakao URL 확보 | 성공률 |
+| ----------------------- | ----------------- | ----: | -------------: | -----: |
+| `culturalSpaceInfo`     | 문화공간          | 1,052 |            933 |  88.7% |
+| `TbVwRestaurants`       | 방문서울 음식점   | 1,247 |          1,065 |  85.4% |
+| `viewNightSpot`         | 야경 명소         |    51 |             42 |  82.4% |
+| `TbVwAttractions`       | 관광명소          |   470 |            371 |  78.9% |
+| `TbVwNature`            | 자연명소          |   148 |            116 |  78.4% |
+| `SearchParkInfoService` | 공원              |   133 |             89 |  66.9% |
+| `culturalEventInfo`     | 문화행사 (기간제) | 3,907 |             ~0 |     0% |
+
+`culturalEventInfo`는 전시·공연 등 기간제 행사 이름이라 Kakao에 고정 장소로 등록되어 있지 않아 매칭이 거의 되지 않는다.
+
+**동작 방식:**
+
+1. **Phase 1 — 지오코딩**: `TbVwRestaurants`, `TbVwAttractions`, `TbVwNature`에서 좌표가 없는 레코드를 Kakao 주소 검색으로 보정한다.
+2. **Phase 2 — Kakao URL 매칭**: 장소 제목 + 지역명으로 keyword search 후 신뢰도 점수 45 이상인 최고 결과를 선택한다. `kakao_place_url`, `kakao_place_name`, `kakao_category_name` 필드를 업데이트하며, 기존 `place_family`·`place_type` 분류는 덮어쓰지 않는다.
+3. 이미 처리된 레코드는 `kakao_checked_at IS NULL` 조건으로 건너뛴다.
+
+**기존 `runKakaoPlaceCategoryNormalization`과의 차이:**
+
+|                      | runKakaoPlaceCategoryNormalization | runKakaoUrlMatching |
+| -------------------- | ---------------------------------- | ------------------- |
+| 대상 데이터셋        | LOCALDATA_072404, LOCALDATA_072405 | 7개 비LOCALDATA     |
+| 최소 신뢰도          | 74                                 | 45                  |
+| 카테고리 제한        | 음식점·카페만                      | 제한 없음           |
+| placeFamily 업데이트 | O                                  | X (URL만 확보)      |
+
+**환경 변수:**
+
+```bash
+KAKAO_URL_MATCH_LIMIT=300          # 배치당 처리 수 (기본 200)
+KAKAO_URL_MATCH_REPEAT=true        # 전체 처리 완료까지 반복
+KAKAO_URL_MATCH_MAX_BATCHES=10     # 최대 배치 수 제한 (0 = 무제한)
+KAKAO_URL_MATCH_DATASETS=culturalSpaceInfo,SearchParkInfoService  # 특정 데이터셋만 처리
+```
+
+### mapUrl 우선순위
+
+후보 장소의 카카오맵 링크는 다음 우선순위로 결정된다:
+
+```
+mapVerification?.placeUrl  (런타임 Kakao 검증 결과)
+  ?? kakao_place_url        (배치 매칭 결과 — DB)
+  ?? source_url             (원본 공공데이터 URL)
+```
+
+배치 매칭이 완료된 데이터셋은 대부분 `kakao_place_url`이 채워져 있어 지도보기 링크가 정상 작동한다.
 
 ---
 
